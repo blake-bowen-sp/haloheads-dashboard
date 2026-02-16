@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Haloheads Dashstats</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<canvas id="matrix-rain"></canvas>
+<div class="scanlines"></div>
+
+<div class="container">
+    <h1 class="title">HALOHEADS TOURNEY</h1>
+
+    <table id="stats-table">
+        <thead>
+            <tr>
+                <th>GAMERTAG</th>
+                <th>KILLS</th>
+                <th>DEATHS</th>
+                <th>ASSISTS</th>
+                <th>SCORE</th>
+                <th>RESULT</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+fetch('/api/playerstats')
+    .then(res => res.json())
+    .then(data => {
+        const tbody = document.querySelector("#stats-table tbody");
+
+        data.forEach(player => {
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+                <td>${player.gamertag || "-"}</td>
+                <td>${player.kills || 0}</td>
+                <td>${player.deaths || 0}</td>
+                <td>${player.assists || 0}</td>
+                <td>${player.score || 0}</td>
+                <td class="${player.result === 'WON' ? 'win' : 'loss'}">
+                    ${player.result || "-"}
+                </td>
+            `;
+
+            tbody.appendChild(row);
+        });
+    });
+</script>
+<script>
+/* ================================
+   MATRIX DIGITAL RAIN
+================================ */
+
+const canvas = document.getElementById("matrix-rain");
+const ctx = canvas.getContext("2d");
+
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+
+const letters = "アァイィウヴエカキクケコサシスセソABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const fontSize = 16;
+const columns = canvas.width / fontSize;
+
+const drops = [];
+for (let i = 0; i < columns; i++) {
+    drops[i] = Math.random() * -100;
+}
+
+function draw() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#00ff9c";
+    ctx.font = fontSize + "px monospace";
+
+    for (let i = 0; i < drops.length; i++) {
+        const text = letters.charAt(Math.floor(Math.random() * letters.length));
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+            drops[i] = 0;
+        }
+
+        drops[i]++;
+    }
+}
+
+setInterval(draw, 50);
+
+window.addEventListener("resize", () => {
+    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth;
+});
+</script>
+
+
+</body>
+</html>

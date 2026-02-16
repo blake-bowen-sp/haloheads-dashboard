@@ -1,0 +1,83 @@
+#matrix-rain {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -2;
+    opacity: 0.15; /* Make it faint */
+    pointer-events: none; /* clickable elements are not blocked */
+}
+
+body {
+    background-color: #050505;
+    color: #00ff9c;
+    font-family: "Courier New", monospace;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    position: relative;
+    z-index: 2;
+    padding: 40px;
+}
+
+.title {
+    text-align: center;
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: #00e5ff;
+    text-shadow: 0 0 10px #00e5ff;
+    margin-bottom: 40px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #00e5ff;
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+}
+
+th, td {
+    padding: 12px;
+    text-align: center;
+}
+
+th {
+    color: #00e5ff;
+    border-bottom: 1px solid #00e5ff;
+}
+
+tr {
+    border-bottom: 1px solid rgba(0, 255, 156, 0.2);
+}
+
+tr:hover {
+    background-color: rgba(0, 255, 156, 0.1);
+}
+
+.win {
+    color: #00ff9c;
+    text-shadow: 0 0 5px #00ff9c;
+}
+
+.loss {
+    color: #ff0040;
+    text-shadow: 0 0 5px #ff0040;
+}
+
+/* Subtle Matrix scanline effect */
+.scanlines::before {
+    content: "";
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 255, 156, 0.015),
+        rgba(0, 255, 156, 0.015) 2px,
+        transparent 2px,
+        transparent 4px
+    );
+    pointer-events: none;
+    z-index: -1;
+}
