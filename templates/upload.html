@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Match Stats</title>
+</head>
+<body style="background:black;color:#00ff9c;font-family:monospace">
+
+<h2>Select Match Screenshot</h2>
+
+<input type="file" id="fileInput" accept="image/*">
+
+<script>
+document.getElementById("fileInput").addEventListener("change", async function() {
+    const file = this.files[0];
+
+    const res = await fetch("/generate-upload-url");
+    const data = await res.json();
+
+    await fetch(data.upload_url, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file
+    });
+
+    alert("Upload complete. Processing...");
+});
+</script>
+
+</body>
+</html>
