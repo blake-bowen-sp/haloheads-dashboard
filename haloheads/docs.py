@@ -4,7 +4,7 @@ from .schema import CarnageReport, result_for, kd, row_hash, game_hash
 def build_docs(report, *, match_id, source_image, img_hash, uploaded_at, analyzed_at):
     match = {
         "match_id": match_id,
-        "gametype": report.gametype.upper(),
+        "gametype": (report.gametype or "").upper(),
         "map": report.map,
         "winning_team": report.winning_team,
         "source_image": source_image,
@@ -27,7 +27,7 @@ def build_docs(report, *, match_id, source_image, img_hash, uploaded_at, analyze
             "assists": p.assists,
             "deaths": p.deaths,
             "kd": kd(p.kills, p.deaths),
-            "gametype": report.gametype.upper(),
+            "gametype": (report.gametype or "").upper(),
             "map": report.map,
             "created_at": analyzed_at,
             "row_hash": row_hash(match_id, p.gamertag, p.score, p.kills, p.assists, p.deaths),

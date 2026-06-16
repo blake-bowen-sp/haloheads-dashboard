@@ -36,12 +36,6 @@ def test_valid_golden():
     assert all(isinstance(p, PlayerRow) for p in report.players)
 
 
-def test_invalid_winning_team():
-    bad = {**GOLDEN_DICT, "winning_team": "GREEN"}
-    with pytest.raises(ValueError):
-        validate_report(bad)
-
-
 def test_empty_players():
     bad = {**GOLDEN_DICT, "players": []}
     with pytest.raises(ValueError):
@@ -59,14 +53,6 @@ def test_player_deaths_string():
 def test_player_negative_kills():
     bad_players = [dict(p) for p in GOLDEN_DICT["players"]]
     bad_players[0] = {**bad_players[0], "kills": -1}
-    bad = {**GOLDEN_DICT, "players": bad_players}
-    with pytest.raises(ValueError):
-        validate_report(bad)
-
-
-def test_player_invalid_team():
-    bad_players = [dict(p) for p in GOLDEN_DICT["players"]]
-    bad_players[0] = {**bad_players[0], "team": "PURPLE"}
     bad = {**GOLDEN_DICT, "players": bad_players}
     with pytest.raises(ValueError):
         validate_report(bad)
@@ -131,3 +117,62 @@ def test_game_hash_changes_on_kills():
 
 def test_game_hash_changes_on_winning_team():
     assert game_hash("BLUE", "SLAYER", _PLAYERS) != game_hash("RED", "SLAYER", _PLAYERS)
+
+
+def test_green_gold_report_validates():
+    report = validate_report({
+        "winning_team": "GREEN",
+        "gametype": "ODDBALL",
+        "map": "Zanzibar",
+        "players": [
+            {"gamertag": "GreenPlayer1", "team": "GREEN", "score": 300, "kills": 20, "assists": 3, "deaths": 5},
+            {"gamertag": "GoldPlayer1", "team": "GOLD", "score": 150, "kills": 10, "assists": 2, "deaths": 12},
+        ],
+    })
+    assert isinstance(report, CarnageReport)
+    assert report.winning_team == "GREEN"
+    assert report.players[0].team == "GREEN"
+    assert report.players[1].team == "GOLD"
+
+
+def test_missing_stats_default_to_zero():
+    report = validate_report({
+        "winning_team": None,
+        "gametype": "FREE FOR ALL",
+        "map": None,
+        "players": [
+            {"gamertag": "SoloPlayer"},
+        ],
+    })
+    p = report.players[0]
+    assert p.score == 0
+    assert p.kills == 0
+    assert p.assists == 0
+    assert p.deaths == 0
+
+
+def test_result_for_none_winning_team():
+    assert result_for("GREEN", None) == ""
+
+
+def test_result_for_none_team():
+    assert result_for(None, "GREEN") == ""
+
+
+def test_result_for_green_won():
+    assert result_for("GREEN", "GREEN") == "WON"
+
+
+def test_result_for_gold_vs_green():
+    assert result_for("GOLD", "GREEN") == "LOST"
+
+
+def test_missing_gamertag_raises():
+    bad = {
+        "winning_team": "BLUE",
+        "gametype": "SLAYER",
+        "map": None,
+        "players": [{"team": "BLUE", "score": 10, "kills": 1, "assists": 0, "deaths": 1}],
+    }
+    with pytest.raises(ValueError):
+        validate_report(bad)

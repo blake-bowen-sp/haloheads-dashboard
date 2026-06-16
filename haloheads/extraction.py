@@ -14,18 +14,18 @@ TOOL = {
         "type": "object",
         "required": ["winning_team", "gametype", "map", "players"],
         "properties": {
-            "winning_team": {"type": "string", "enum": ["BLUE", "RED"]},
+            "winning_team": {"type": ["string", "null"]},
             "gametype": {"type": "string"},
             "map": {"type": ["string", "null"]},
             "players": {
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "required": ["gamertag", "clan_tag", "team", "score", "kills", "assists", "deaths"],
+                    "required": ["gamertag"],
                     "properties": {
                         "gamertag": {"type": "string"},
                         "clan_tag": {"type": ["string", "null"]},
-                        "team": {"type": "string", "enum": ["BLUE", "RED"]},
+                        "team": {"type": ["string", "null"]},
                         "score": {"type": "integer"},
                         "kills": {"type": "integer"},
                         "assists": {"type": "integer"},
@@ -39,11 +39,11 @@ TOOL = {
 
 PROMPT = (
     "This is a photo of a Halo post-game carnage report scoreboard. "
-    "Extract every player's stats. The winning team is named in the header "
-    "(e.g. 'BLUE TEAM WON'). Each player's team is shown by their row color: "
-    "blue rows = BLUE, red rows = RED. Keep the clan tag shown in [brackets] "
-    "separate from the gamertag (clan_tag is null if there is no bracket tag). "
-    "Columns are SCORE, KILLS, ASSISTS, DEATHS; return them as integers. "
+    "Read the scoreboard and extract every player's username (gamertag) and whatever stats are shown. "
+    "Teams can be any color or label (blue, red, green, gold, etc.) — record the team label exactly as shown; use null if no team is visible. "
+    "The winning team is whatever the header says (e.g. 'BLUE TEAM WON', 'GREEN WINS'); use null if not shown. "
+    "Keep the clan tag shown in [brackets] separate from the gamertag (clan_tag is null if there is no bracket tag). "
+    "Columns may include SCORE, KILLS, ASSISTS, DEATHS; return visible ones as integers, omit any not visible. "
     "Set map to null if no map name is visible. Call record_carnage_report with the result."
 )
 

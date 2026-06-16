@@ -1,16 +1,16 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Optional
 import hashlib
 
-Team = Literal["BLUE", "RED"]
-Result = Literal["WON", "LOST"]
+Team = str
+Result = str
 
 
 @dataclass
 class PlayerRow:
     gamertag: str
     clan_tag: Optional[str]
-    team: Team
+    team: Optional[str]
     score: int
     kills: int
     assists: int
@@ -19,13 +19,15 @@ class PlayerRow:
 
 @dataclass
 class CarnageReport:
-    winning_team: Team
+    winning_team: Optional[str]
     gametype: str
     map: Optional[str]
     players: list[PlayerRow]
 
 
 def result_for(team, winning_team):
+    if not winning_team or not team:
+        return ""
     return "WON" if team == winning_team else "LOST"
 
 
@@ -44,16 +46,12 @@ def row_hash(match_id, gamertag, score, kills, assists, deaths) -> str:
 
 def game_hash(winning_team, gametype, players) -> str:
     rows = sorted(f"{p.gamertag}|{p.score}|{p.kills}|{p.assists}|{p.deaths}" for p in players)
-    raw = f"{winning_team}|{gametype.upper()}|" + "||".join(rows)
+    raw = f"{winning_team or ''}|{(gametype or '').upper()}|" + "||".join(rows)
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def validate_report(data: dict) -> CarnageReport:
-    winning_team = data.get("winning_team")
-    if winning_team not in ("BLUE", "RED"):
-        raise ValueError(f"winning_team must be BLUE or RED, got {winning_team!r}")
-
-    players_raw = data.get("players", [])
+    players_raw = data.get("players") or []
     if not players_raw:
         raise ValueError("players list must not be empty")
 
@@ -63,21 +61,20 @@ def validate_report(data: dict) -> CarnageReport:
         if not gamertag:
             raise ValueError("player missing gamertag")
 
-        team = p.get("team")
-        if team not in ("BLUE", "RED"):
-            raise ValueError(f"player team must be BLUE or RED, got {team!r}")
-
         for field in ("score", "kills", "assists", "deaths"):
             val = p.get(field)
-            if isinstance(val, bool) or not isinstance(val, int):
+            if val is None:
+                val = 0
+            elif isinstance(val, bool) or not isinstance(val, int):
                 raise ValueError(f"player {field} must be int, got {type(val).__name__}")
-            if val < 0:
+            elif val < 0:
                 raise ValueError(f"player {field} must be >= 0, got {val}")
+            p = {**p, field: val}
 
         players.append(PlayerRow(
             gamertag=gamertag,
             clan_tag=p.get("clan_tag"),
-            team=team,
+            team=p.get("team"),
             score=p["score"],
             kills=p["kills"],
             assists=p["assists"],
@@ -85,8 +82,8 @@ def validate_report(data: dict) -> CarnageReport:
         ))
 
     return CarnageReport(
-        winning_team=winning_team,
-        gametype=data.get("gametype", ""),
+        winning_team=data.get("winning_team"),
+        gametype=data.get("gametype") or "",
         map=data.get("map"),
         players=players,
     )
