@@ -1,0 +1,5 @@
+Model Information:
+* title:	Sci-fi computer (game ready)
+* source:	https://sketchfab.com/3d-models/sci-fi-computer-game-ready-53e7eeb0f69540d2892ad6aa5f47bd39
+* author:	assetfactory (https://sketchfab.com/assetfactory)
+* license:	Sketchfab Free Standard — use permitted with credit; no redistribution of the standalone model.
