@@ -1,4 +1,6 @@
-from haloheads.schema import CarnageReport, PlayerRow, validate_report
+from pathlib import Path
+
+from haloheads.schema import CarnageReport, PlayerRow, image_hash, validate_report
 
 CARNAGE_BLUE: CarnageReport = validate_report({
     "winning_team": "BLUE",
@@ -16,6 +18,14 @@ CARNAGE_BLUE: CarnageReport = validate_report({
     ],
 })
 
+_ROOT = Path(__file__).resolve().parents[2]
+_BLUE_HASH = image_hash((_ROOT / "gameStatsImageFiles" / "testTeamResultData.jpeg").read_bytes())
+_RED_HASH = image_hash((_ROOT / "gameStatsImageFiles" / "scoreboard.png").read_bytes())
+
 
 def fake_extract(data: bytes) -> CarnageReport:
+    from tests.fixtures.carnage_red import CARNAGE_RED
+    h = image_hash(data)
+    if h == _RED_HASH:
+        return CARNAGE_RED
     return CARNAGE_BLUE
