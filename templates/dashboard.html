@@ -33,6 +33,11 @@
       color:#06120e; background:var(--acc); padding:11px 22px; border-radius:100px;
       box-shadow:0 8px 30px rgba(79,224,184,.28); transition:transform .2s ease, box-shadow .3s ease}
     .up:hover{transform:translateY(-1px); box-shadow:0 10px 40px rgba(79,224,184,.5)}
+    .countdown{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none}
+    .cd-label{font-size:9px; letter-spacing:.4em; color:var(--dim); text-transform:uppercase}
+    .cd-time{font-size:15px; font-weight:500; letter-spacing:.12em; color:#fff; font-variant-numeric:tabular-nums; margin-top:3px}
+    .cd-time b{color:var(--acc); font-weight:600}
+    @media(max-width:820px){ .countdown{display:none} }
     /* hero */
     .hero{position:relative; z-index:5; height:100vh; display:flex; flex-direction:column;
       align-items:center; justify-content:center; text-align:center; padding:0 24px; pointer-events:none}
@@ -85,6 +90,7 @@
 
   <header>
     <div class="mark">HALO<i>HEADS</i></div>
+    <div class="countdown"><div class="cd-label">Next Bloodletting</div><div class="cd-time" id="cd-time">—</div></div>
     <a class="up" href="/upload">Upload</a>
   </header>
 
@@ -171,9 +177,13 @@
       (function grow(){ const k=Math.min(1,(performance.now()-t0)/900); model.scale.setScalar(0.001+(1-0.001)*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(grow); })();
     }, undefined, ()=>{});
 
-    const composer = new EffectComposer(renderer);
+    // HDR + 4x MSAA render target → crisp anti-aliased edges and high-quality, band-free bloom
+    const hdrRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 });
+    const composer = new EffectComposer(renderer, hdrRT);
+    composer.setPixelRatio(Math.min(2, devicePixelRatio));
+    composer.setSize(innerWidth, innerHeight);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.38, 0.7, 0.9);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.52, 0.85, 0.82);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
 
@@ -228,6 +238,17 @@
         table.appendChild(tb); panel.appendChild(table); grid.appendChild(panel); });
       wrap.appendChild(grid);
     });
+
+    // countdown — 7:00 PM Central (Austin), July 6 2026 (CDT = -05:00)
+    const TARGET = new Date('2026-07-06T19:00:00-05:00');
+    const cdt = document.getElementById('cd-time');
+    (function cdTick(){
+      const ms = TARGET - new Date();
+      if(ms<=0){ cdt.textContent='LIVE NOW'; }
+      else { const d=Math.floor(ms/864e5),h=Math.floor(ms/36e5)%24,m=Math.floor(ms/6e4)%60,s=Math.floor(ms/1e3)%60,p=n=>String(n).padStart(2,'0');
+        cdt.innerHTML=`<b>${d}</b>d <b>${p(h)}</b>h <b>${p(m)}</b>m <b>${p(s)}</b>s`; }
+      setTimeout(cdTick,1000);
+    })();
 
     if('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
   </script>
