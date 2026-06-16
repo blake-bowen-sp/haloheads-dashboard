@@ -8,6 +8,7 @@ from haloheads.schema import (
     kd,
     image_hash,
     row_hash,
+    game_hash,
 )
 
 GOLDEN_DICT = {
@@ -105,3 +106,28 @@ def test_bool_rejected_as_int():
     bad = {**GOLDEN_DICT, "players": bad_players}
     with pytest.raises(ValueError):
         validate_report(bad)
+
+
+_PLAYERS = validate_report(GOLDEN_DICT).players
+
+
+def test_game_hash_deterministic():
+    h1 = game_hash("BLUE", "SLAYER", _PLAYERS)
+    h2 = game_hash("BLUE", "SLAYER", _PLAYERS)
+    assert h1 == h2
+    assert isinstance(h1, str) and len(h1) == 64
+
+
+def test_game_hash_order_independent():
+    shuffled = list(reversed(_PLAYERS))
+    assert game_hash("BLUE", "SLAYER", _PLAYERS) == game_hash("BLUE", "SLAYER", shuffled)
+
+
+def test_game_hash_changes_on_kills():
+    from dataclasses import replace
+    mutated = [replace(_PLAYERS[0], kills=_PLAYERS[0].kills + 1)] + _PLAYERS[1:]
+    assert game_hash("BLUE", "SLAYER", _PLAYERS) != game_hash("BLUE", "SLAYER", mutated)
+
+
+def test_game_hash_changes_on_winning_team():
+    assert game_hash("BLUE", "SLAYER", _PLAYERS) != game_hash("RED", "SLAYER", _PLAYERS)

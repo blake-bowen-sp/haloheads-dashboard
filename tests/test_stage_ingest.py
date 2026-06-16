@@ -52,3 +52,37 @@ def test_ingest_is_idempotent(tmp_path, monkeypatch, sample_image_bytes):
 
     assert len(get_store().all_matches()) == 1
     assert len(get_store().all_player_stats()) == 8
+
+
+def test_game_level_dedup_different_image_same_game(tmp_path, monkeypatch, sample_image_bytes):
+    _setup(tmp_path, monkeypatch)
+
+    inbox_a = tmp_path / "inbox_a"
+    storage = get_storage()
+
+    key_a = storage.save_upload(sample_image_bytes, "image/jpeg", {"uploaded_at": "t0"})
+    manifest_a = stage.main(["--stage-dir", str(inbox_a)])
+    assert len(manifest_a) == 1
+
+    reports_a = {key_a: asdict(CARNAGE_BLUE)}
+    reports_path_a = tmp_path / "reports_a.json"
+    reports_path_a.write_text(json.dumps(reports_a))
+    ingest.main(["--reports", str(reports_path_a), "--manifest", str(inbox_a / "manifest.json")])
+
+    store = get_store()
+    assert len(store.all_matches()) == 1
+    assert len(store.all_player_stats()) == 8
+
+    inbox_b = tmp_path / "inbox_b"
+    different_bytes = sample_image_bytes + b"X"
+    key_b = storage.save_upload(different_bytes, "image/jpeg", {"uploaded_at": "t1"})
+    manifest_b = stage.main(["--stage-dir", str(inbox_b)])
+    assert len(manifest_b) == 1
+
+    reports_b = {key_b: asdict(CARNAGE_BLUE)}
+    reports_path_b = tmp_path / "reports_b.json"
+    reports_path_b.write_text(json.dumps(reports_b))
+    ingest.main(["--reports", str(reports_path_b), "--manifest", str(inbox_b / "manifest.json")])
+
+    assert len(store.all_matches()) == 1
+    assert len(store.all_player_stats()) == 8

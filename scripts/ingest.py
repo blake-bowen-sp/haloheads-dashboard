@@ -46,6 +46,9 @@ def main(argv=None):
             uploaded_at=info.get("uploaded_at") or now_iso,
             analyzed_at=now_iso,
         )
+        if store.game_exists(match["game_hash"]):
+            n_skipped += 1
+            continue
         store.add_match(match, players)
         try:
             storage.move(key, "analyzed/")

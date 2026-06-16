@@ -42,6 +42,12 @@ def row_hash(match_id, gamertag, score, kills, assists, deaths) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def game_hash(winning_team, gametype, players) -> str:
+    rows = sorted(f"{p.gamertag}|{p.score}|{p.kills}|{p.assists}|{p.deaths}" for p in players)
+    raw = f"{winning_team}|{gametype.upper()}|" + "||".join(rows)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def validate_report(data: dict) -> CarnageReport:
     winning_team = data.get("winning_team")
     if winning_team not in ("BLUE", "RED"):

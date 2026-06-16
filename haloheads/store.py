@@ -5,6 +5,7 @@ from typing import Protocol
 
 class Store(Protocol):
     def match_exists(self, image_hash: str) -> bool: ...
+    def game_exists(self, game_hash: str) -> bool: ...
     def add_match(self, match: dict, players: list[dict]) -> None: ...
     def all_player_stats(self) -> list[dict]: ...
     def all_matches(self) -> list[dict]: ...
@@ -26,7 +27,8 @@ class SqliteStore:
                 source_image TEXT,
                 uploaded_at TEXT,
                 analyzed_at TEXT,
-                image_hash TEXT UNIQUE
+                image_hash TEXT UNIQUE,
+                game_hash TEXT
             );
             CREATE TABLE IF NOT EXISTS player_stats (
                 row_hash TEXT PRIMARY KEY,
@@ -53,14 +55,20 @@ class SqliteStore:
         )
         return cur.fetchone() is not None
 
+    def game_exists(self, game_hash: str) -> bool:
+        cur = self._conn.execute(
+            "SELECT 1 FROM matches WHERE game_hash = ? LIMIT 1", (game_hash,)
+        )
+        return cur.fetchone() is not None
+
     def add_match(self, match: dict, players: list[dict]) -> None:
         with self._conn:
             self._conn.execute(
                 """INSERT OR IGNORE INTO matches
                    (match_id, gametype, map, winning_team, source_image,
-                    uploaded_at, analyzed_at, image_hash)
+                    uploaded_at, analyzed_at, image_hash, game_hash)
                    VALUES (:match_id, :gametype, :map, :winning_team, :source_image,
-                           :uploaded_at, :analyzed_at, :image_hash)""",
+                           :uploaded_at, :analyzed_at, :image_hash, :game_hash)""",
                 match,
             )
             self._conn.executemany(
@@ -90,6 +98,15 @@ class FirestoreStore:
         results = (
             self.db.collection("matches")
             .where("image_hash", "==", image_hash)
+            .limit(1)
+            .get()
+        )
+        return len(results) > 0
+
+    def game_exists(self, game_hash: str) -> bool:
+        results = (
+            self.db.collection("matches")
+            .where("game_hash", "==", game_hash)
             .limit(1)
             .get()
         )

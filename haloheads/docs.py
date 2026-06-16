@@ -1,4 +1,4 @@
-from .schema import CarnageReport, result_for, kd, row_hash
+from .schema import CarnageReport, result_for, kd, row_hash, game_hash
 
 
 def build_docs(report, *, match_id, source_image, img_hash, uploaded_at, analyzed_at):
@@ -11,6 +11,7 @@ def build_docs(report, *, match_id, source_image, img_hash, uploaded_at, analyze
         "uploaded_at": uploaded_at,
         "analyzed_at": analyzed_at,
         "image_hash": img_hash,
+        "game_hash": game_hash(report.winning_team, report.gametype, report.players),
     }
 
     players = []

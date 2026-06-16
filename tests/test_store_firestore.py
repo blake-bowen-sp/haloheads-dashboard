@@ -127,3 +127,20 @@ def test_match_exists_uses_where_query(fake_firestore_store):
 def test_match_exists_false(fake_firestore_store):
     store, client = fake_firestore_store
     assert store.match_exists("nonexistent") is False
+
+
+def test_game_exists_uses_where_query(fake_firestore_store):
+    store, client = fake_firestore_store
+    match, players = _docs()
+    store.add_match(match, players)
+
+    result = store.game_exists(match["game_hash"])
+    assert result is True
+
+    where_queries = client.collection("matches")._where_queries
+    assert any(q["field"] == "game_hash" for q in where_queries)
+
+
+def test_game_exists_false(fake_firestore_store):
+    store, client = fake_firestore_store
+    assert store.game_exists("nonexistent") is False

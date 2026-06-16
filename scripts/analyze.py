@@ -88,6 +88,11 @@ def main(argv=None):
             print(json.dumps(asdict(report), indent=2))
             continue
 
+        if store.game_exists(match["game_hash"]):
+            storage.move(key, "analyzed/")
+            n_skipped += 1
+            continue
+
         store.add_match(match, players)
         storage.move(key, "analyzed/")
         n_new += 1

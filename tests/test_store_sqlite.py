@@ -1,5 +1,6 @@
 from tests.fixtures.carnage_blue import CARNAGE_BLUE
 from haloheads.docs import build_docs
+from haloheads import schema
 
 
 def _docs(match_id="m1"):
@@ -56,7 +57,18 @@ def test_match_keys(sqlite_store):
     sqlite_store.add_match(match, players)
     expected_keys = {
         "match_id", "gametype", "map", "winning_team", "source_image",
-        "uploaded_at", "analyzed_at", "image_hash",
+        "uploaded_at", "analyzed_at", "image_hash", "game_hash",
     }
     for row in sqlite_store.all_matches():
         assert set(row.keys()) == expected_keys
+
+
+def test_game_exists_true(sqlite_store):
+    match, players = _docs()
+    sqlite_store.add_match(match, players)
+    expected_hash = schema.game_hash(CARNAGE_BLUE.winning_team, CARNAGE_BLUE.gametype, CARNAGE_BLUE.players)
+    assert sqlite_store.game_exists(expected_hash) is True
+
+
+def test_game_exists_false(sqlite_store):
+    assert sqlite_store.game_exists("nope") is False

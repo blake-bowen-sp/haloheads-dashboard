@@ -49,8 +49,13 @@ def test_row_hashes_unique():
 def test_match_keys():
     match, _ = _build()
     for key in ("match_id", "gametype", "map", "winning_team", "source_image",
-                "uploaded_at", "analyzed_at", "image_hash"):
+                "uploaded_at", "analyzed_at", "image_hash", "game_hash"):
         assert key in match, f"missing key {key!r}"
+
+
+def test_match_game_hash_nonempty():
+    match, _ = _build()
+    assert isinstance(match["game_hash"], str) and len(match["game_hash"]) > 0
 
 
 def test_player_keys():
