@@ -1,0 +1,4 @@
+-r requirements-analyzer.txt
+pytest
+pytest-playwright
+Flask==3.0.0
