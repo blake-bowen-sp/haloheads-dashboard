@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from haloheads.docs import build_docs
 from haloheads.extraction import get_extractor
 from haloheads.schema import image_hash
