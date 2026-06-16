@@ -74,6 +74,25 @@ def test_request_shape(sample_image_bytes):
     assert len(image_block["source"]["data"]) > 0
 
 
+def test_transmits_actual_image_content(sample_image_bytes):
+    import base64
+    from pathlib import Path
+    from haloheads.extraction import _downscale_jpeg
+
+    golden_dict = asdict(CARNAGE_BLUE)
+
+    fake_blue = _FakeClient(_FakeResp([_FakeBlock("tool_use", "record_carnage_report", golden_dict)]))
+    extract_carnage_report(sample_image_bytes, client=fake_blue)
+    sent_blue = fake_blue.messages._kwargs["messages"][0]["content"][0]["source"]["data"]
+    assert sent_blue == base64.standard_b64encode(_downscale_jpeg(sample_image_bytes)).decode()
+
+    other = (Path(__file__).resolve().parents[1] / "gameStatsImageFiles" / "scoreboard.png").read_bytes()
+    fake_other = _FakeClient(_FakeResp([_FakeBlock("tool_use", "record_carnage_report", golden_dict)]))
+    extract_carnage_report(other, client=fake_other)
+    sent_other = fake_other.messages._kwargs["messages"][0]["content"][0]["source"]["data"]
+    assert sent_other != sent_blue
+
+
 def test_no_tool_use_raises(sample_image_bytes):
     fake_resp = _FakeResp([_FakeBlock("text")])
     fake = _FakeClient(fake_resp)

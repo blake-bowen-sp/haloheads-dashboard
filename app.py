@@ -5,6 +5,12 @@ from haloheads.store import get_store
 from haloheads.aggregate import leaderboard, mvps, by_gametype
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"error": "file too large"}), 413
 
 
 @app.route("/")

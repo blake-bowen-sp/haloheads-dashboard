@@ -53,7 +53,11 @@ fetch("/api/leaderboard")
     }
     data.forEach((p, i) => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${i + 1}</td><td>${p.gamertag}</td><td>${p.games}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td><td>${p.net_kd}</td><td>${Math.round(p.win_rate * 100)}%</td>`;
+      [i + 1, p.gamertag, p.games, p.kills, p.deaths, p.assists, p.net_kd, Math.round(p.win_rate * 100) + "%"].forEach(v => {
+        const td = document.createElement("td");
+        td.textContent = v;
+        tr.appendChild(td);
+      });
       tbody.appendChild(tr);
     });
   });
@@ -75,7 +79,11 @@ fetch("/api/gametypes")
       const tbody = document.createElement("tbody");
       rows.forEach(p => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${p.gamertag}</td><td>${p.net_kd}</td><td>${p.games}</td>`;
+        [p.gamertag, p.net_kd, p.games].forEach(v => {
+          const td = document.createElement("td");
+          td.textContent = v;
+          tr.appendChild(td);
+        });
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);

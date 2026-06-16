@@ -46,6 +46,21 @@ def test_upload_requires_image(client):
     assert r.get_json()["error"] == "no image"
 
 
+def test_upload_too_large(client):
+    original = flask_app.config["MAX_CONTENT_LENGTH"]
+    flask_app.config["MAX_CONTENT_LENGTH"] = 50
+    try:
+        r = client.post(
+            "/upload",
+            data={"image": (io.BytesIO(b"x" * 500), "big.jpg")},
+            content_type="multipart/form-data",
+        )
+        assert r.status_code == 413
+        assert r.get_json()["error"] == "file too large"
+    finally:
+        flask_app.config["MAX_CONTENT_LENGTH"] = original
+
+
 def test_leaderboard(client, tmp_path, monkeypatch):
     monkeypatch.setenv("STORE_BACKEND", "sqlite")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "stats.db"))
