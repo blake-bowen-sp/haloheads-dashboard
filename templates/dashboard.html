@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>HALOHEADS</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#060709">
   <link rel="manifest" href="/static/manifest.webmanifest">
@@ -12,76 +12,81 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Saira:wght@200;300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    :root{
-      --bg:#060709; --ink:#e9edf0; --dim:#727d88; --line:rgba(255,255,255,.08);
-      --acc:#4fe0b8; --loss:#ff5d6c;
-      --f:'Saira',-apple-system,sans-serif;
-    }
+    :root{ --bg:#060709; --ink:#e9edf0; --dim:#727d88; --line:rgba(255,255,255,.08);
+      --acc:#33ffb0; --loss:#ff5d6c; --f:'Saira',-apple-system,sans-serif; }
     *{margin:0;padding:0;box-sizing:border-box}
     html{scroll-behavior:smooth}
-    body{background:var(--bg); color:var(--ink); font-family:var(--f); font-weight:300;
-      overflow-x:hidden; -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1}
+    body{background:var(--bg); color:var(--ink); font-family:var(--f); font-weight:300; overflow-x:hidden;
+      -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1}
     #scene{position:fixed; inset:0; width:100vw; height:100vh; z-index:0; display:block}
     .veil{position:fixed; inset:0; z-index:1; pointer-events:none;
-      background:radial-gradient(130% 110% at 50% 32%, transparent 58%, rgba(0,0,0,.6) 100%)}
-    /* header */
+      background:radial-gradient(135% 115% at 50% 34%, transparent 56%, rgba(0,0,0,.62) 100%)}
     header{position:fixed; top:0; left:0; right:0; z-index:40; display:flex; align-items:center;
-      justify-content:space-between; padding:20px clamp(20px,4vw,52px)}
-    .mark{font-weight:500; letter-spacing:.46em; font-size:clamp(13px,1.5vw,16px); color:#fff}
+      justify-content:space-between; padding:18px clamp(16px,4vw,52px) 24px}
+    header::before{content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+      background:linear-gradient(180deg, rgba(6,7,9,.9) 0%, rgba(6,7,9,.62) 52%, transparent 100%);
+      backdrop-filter:blur(13px); -webkit-backdrop-filter:blur(13px);
+      -webkit-mask-image:linear-gradient(180deg,#000 58%,transparent); mask-image:linear-gradient(180deg,#000 58%,transparent)}
+    .mark{font-weight:500; letter-spacing:.42em; font-size:clamp(12px,1.5vw,16px); color:#fff}
     .mark i{color:var(--acc); font-style:normal}
-    .up{font-size:12.5px; font-weight:500; letter-spacing:.22em; text-transform:uppercase; text-decoration:none;
-      color:#06120e; background:var(--acc); padding:11px 22px; border-radius:100px;
-      box-shadow:0 8px 30px rgba(79,224,184,.28); transition:transform .2s ease, box-shadow .3s ease}
-    .up:hover{transform:translateY(-1px); box-shadow:0 10px 40px rgba(79,224,184,.5)}
+    .up{font-size:12px; font-weight:500; letter-spacing:.2em; text-transform:uppercase; text-decoration:none;
+      color:#06120e; background:var(--acc); padding:10px 20px; border-radius:100px;
+      box-shadow:0 8px 30px rgba(51,255,176,.28); transition:transform .2s, box-shadow .3s; white-space:nowrap}
+    .up:hover{transform:translateY(-1px); box-shadow:0 10px 40px rgba(51,255,176,.5)}
     .countdown{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none}
     .cd-label{font-size:9px; letter-spacing:.4em; color:var(--dim); text-transform:uppercase}
-    .cd-time{font-size:15px; font-weight:500; letter-spacing:.12em; color:#fff; font-variant-numeric:tabular-nums; margin-top:3px}
+    .cd-time{font-size:15px; font-weight:500; letter-spacing:.12em; color:#fff; margin-top:3px}
     .cd-time b{color:var(--acc); font-weight:600}
-    @media(max-width:820px){ .countdown{display:none} }
-    /* hero */
-    .hero{position:relative; z-index:5; height:100vh; display:flex; flex-direction:column;
-      align-items:center; justify-content:center; text-align:center; padding:0 24px; pointer-events:none}
-    .kicker{font-size:clamp(10px,1.2vw,12px); letter-spacing:.62em; color:var(--acc); text-transform:uppercase;
+    @media(max-width:860px){ .countdown{display:none} }
+    .hero{position:relative; z-index:5; min-height:100vh; min-height:100svh; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; text-align:center; padding:0 22px; pointer-events:none}
+    .kicker{font-size:clamp(9px,1.2vw,12px); letter-spacing:.55em; color:var(--acc); text-transform:uppercase;
       opacity:0; animation:rise .9s .2s ease forwards}
-    .title{font-weight:200; letter-spacing:.04em; line-height:.95; font-size:clamp(54px,13vw,176px); color:#fff;
-      margin:20px 0 0; opacity:0; animation:rise 1s .35s ease forwards}
+    .title{font-weight:200; letter-spacing:.04em; line-height:.92; font-size:clamp(48px,13vw,176px); color:#fff;
+      margin:18px 0 0; opacity:0; animation:rise 1s .35s ease forwards}
     .sub{font-size:clamp(12px,1.4vw,15px); font-weight:300; letter-spacing:.06em; color:var(--dim);
-      margin-top:26px; max-width:30ch; opacity:0; animation:rise 1s .55s ease forwards}
-    @keyframes rise{from{opacity:0; transform:translateY(22px)} to{opacity:1; transform:none}}
-    .cue{position:absolute; bottom:30px; left:50%; transform:translateX(-50%); width:1px; height:54px;
-      background:linear-gradient(var(--acc),transparent); opacity:.6}
-    .cue::after{content:""; position:absolute; top:0; left:0; width:1px; height:18px; background:var(--acc);
+      margin-top:22px; max-width:30ch; opacity:0; animation:rise 1s .55s ease forwards}
+    @keyframes rise{from{opacity:0; transform:translateY(20px)} to{opacity:1; transform:none}}
+    .cue{position:absolute; bottom:26px; left:50%; transform:translateX(-50%); width:1px; height:50px;
+      background:linear-gradient(var(--acc),transparent); opacity:.55; overflow:hidden}
+    .cue::after{content:""; position:absolute; top:0; left:0; width:1px; height:16px; background:var(--acc);
       animation:trail 2.4s ease-in-out infinite}
-    @keyframes trail{0%{transform:translateY(0); opacity:1}70%{transform:translateY(38px); opacity:0}100%{opacity:0}}
-    /* stats */
-    .stats{position:relative; z-index:20; max-width:1140px; margin:0 auto; padding:4vh clamp(18px,5vw,72px) 16vh}
-    .sec{display:flex; align-items:baseline; gap:14px; margin:0 0 16px}
-    .sec h2{font-weight:300; letter-spacing:.34em; font-size:clamp(14px,2vw,20px); color:#fff; text-transform:uppercase}
-    .sec span{font-size:11px; letter-spacing:.22em; color:var(--dim); text-transform:uppercase}
-    .panel{position:relative; border-radius:14px; overflow:hidden; margin-bottom:30px;
+    @keyframes trail{0%{transform:translateY(-16px)}70%{transform:translateY(50px); opacity:0}100%{opacity:0}}
+    .stats{position:relative; z-index:20; max-width:1140px; margin:0 auto; padding:4vh clamp(14px,5vw,72px) 8vh}
+    .sec{display:flex; align-items:baseline; gap:14px; margin:0 0 16px; flex-wrap:wrap}
+    .sec h2{font-weight:300; letter-spacing:.3em; font-size:clamp(14px,2vw,20px); color:#fff; text-transform:uppercase}
+    .sec span{font-size:11px; letter-spacing:.2em; color:var(--dim); text-transform:uppercase}
+    .panel{position:relative; border-radius:14px; overflow:hidden; margin-bottom:28px;
       background:rgba(12,15,19,.5); backdrop-filter:blur(26px) saturate(1.2); -webkit-backdrop-filter:blur(26px) saturate(1.2);
       border:1px solid var(--line); box-shadow:0 40px 90px rgba(0,0,0,.55);
-      opacity:0; transform:translateY(30px); transition:opacity .9s ease, transform .9s cubic-bezier(.2,.7,.2,1)}
+      opacity:0; transform:translateY(28px); transition:opacity .9s ease, transform .9s cubic-bezier(.2,.7,.2,1)}
     .panel.in{opacity:1; transform:none}
-    table{width:100%; border-collapse:collapse}
-    th,td{padding:15px 16px; text-align:right; white-space:nowrap}
+    .scroller{overflow-x:auto; -webkit-overflow-scrolling:touch}
+    table{width:100%; border-collapse:collapse; min-width:520px}
+    th,td{padding:14px 15px; text-align:right; white-space:nowrap}
     th:nth-child(2),td:nth-child(2){text-align:left}
-    thead th{font-weight:500; letter-spacing:.16em; font-size:10.5px; text-transform:uppercase; color:var(--dim);
-      border-bottom:1px solid var(--line)}
+    thead th{font-weight:500; letter-spacing:.16em; font-size:10.5px; text-transform:uppercase; color:var(--dim); border-bottom:1px solid var(--line)}
     tbody td{font-size:15px; font-weight:300; color:#dfe6ea; border-bottom:1px solid rgba(255,255,255,.04)}
     tbody tr:last-child td{border-bottom:none}
-    tbody tr:hover{background:rgba(79,224,184,.04)}
-    .rank{color:var(--dim); font-weight:400}
-    .name{font-weight:500; color:#fff; letter-spacing:.01em}
-    .kd{font-weight:500; color:var(--acc)}
-    .win{color:var(--acc)} .loss{color:var(--loss)}
-    .empty{text-align:center; color:var(--dim); padding:46px; letter-spacing:.14em; font-size:13px; text-transform:uppercase}
-    .gt-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:22px}
+    tbody tr:hover{background:rgba(51,255,176,.04)}
+    .rank{color:var(--dim)} .name{font-weight:500; color:#fff}
+    .kd{font-weight:500; color:var(--acc)} .win{color:var(--acc)} .loss{color:var(--loss)}
+    .empty{text-align:center; color:var(--dim); padding:44px; letter-spacing:.12em; font-size:13px; text-transform:uppercase}
+    .gt-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:20px}
     .gt-h{font-weight:500; letter-spacing:.18em; color:#fff; font-size:12.5px; padding:16px 18px 4px; text-transform:uppercase}
-    .gt-h small{color:var(--dim); font-weight:300; letter-spacing:.1em}
-    .credit{text-align:center; color:#3a434c; font-size:10.5px; letter-spacing:.18em; padding-top:10px}
+    table.gt{min-width:0}
+    /* bottom big countdown */
+    .bottom{position:relative; z-index:20; min-height:100vh; min-height:100svh; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; text-align:center; padding:14vh 18px 16vh}
+    .big-label{font-size:clamp(10px,1.6vw,14px); letter-spacing:.5em; color:var(--acc); text-transform:uppercase}
+    .big-time{font-weight:200; letter-spacing:.02em; font-size:clamp(40px,11vw,150px); color:#fff; line-height:1; margin:18px 0;
+      text-shadow:0 0 50px rgba(51,255,176,.18)}
+    .big-time b{font-weight:300; color:var(--acc)}
+    .big-time small{font-size:.34em; font-weight:300; color:var(--dim); letter-spacing:.04em}
+    .big-sub{font-size:clamp(12px,1.5vw,15px); letter-spacing:.18em; color:var(--dim); text-transform:uppercase}
+    .credit{position:relative; z-index:20; text-align:center; color:#39434c; font-size:10px; letter-spacing:.16em; padding:0 18px 26px}
     .credit a{color:#525c66; text-decoration:none}
-    @media(max-width:600px){ th,td{padding:11px 9px; font-size:13px} .title{letter-spacing:0} }
+    @media(max-width:600px){ th,td{padding:11px 10px; font-size:14px} }
   </style>
 </head>
 <body>
@@ -103,16 +108,19 @@
 
   <main class="stats">
     <div class="sec"><h2>Leaderboard</h2><span>Net K/D Ranking</span></div>
-    <div class="panel" id="lb">
-      <table id="leaderboard">
-        <thead><tr><th>#</th><th>Username</th><th>GP</th><th>K</th><th>D</th><th>A</th><th>K/D</th><th>Win%</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <div class="panel" id="lb"><div class="scroller"><table id="leaderboard">
+      <thead><tr><th>#</th><th>Username</th><th>GP</th><th>K</th><th>D</th><th>A</th><th>K/D</th><th>Win%</th></tr></thead>
+      <tbody></tbody></table></div></div>
     <div class="sec"><h2>By Gametype</h2><span>Per-mode performance</span></div>
     <div id="gametypes"></div>
-    <div class="credit">Rifle model — “Halo Sniper Rifle” by <a href="https://sketchfab.com/3d-models/halo-sniper-rifle-free-download-cd7816f794db405caec114a8fe699620" target="_blank" rel="noopener">Glitch5970</a>, CC BY 4.0</div>
   </main>
+
+  <section class="bottom">
+    <div class="big-label">Next Bloodletting</div>
+    <div class="big-time" id="big-time">—</div>
+    <div class="big-sub">July 6 · 7:00 PM · Austin, TX</div>
+  </section>
+  <div class="credit">Rifle “Halo Sniper Rifle” by <a href="https://sketchfab.com/3d-models/halo-sniper-rifle-free-download-cd7816f794db405caec114a8fe699620" target="_blank" rel="noopener">Glitch5970</a> · Warthog by <a href="https://sketchfab.com/3d-models/warthog-standard-edition-e2d23c845eb34df2a286915890bb621a" target="_blank" rel="noopener">McCarthy3D</a> · CC BY 4.0 · HDRI Poly Haven CC0</div>
 
   <script type="importmap">
   { "imports": {
@@ -123,6 +131,7 @@
   <script type="module">
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
     import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -134,85 +143,82 @@
     renderer.setPixelRatio(Math.min(2, devicePixelRatio));
     renderer.setSize(innerWidth, innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.15;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060709);
-    scene.fog = new THREE.FogExp2(0x060709, 0.03);
-
+    scene.background = new THREE.Color(0x060709);   // black bg — HDRI used for reflections only
     const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
-    camera.position.set(0, 0.15, 8.6);
+    function fitCamera(){ const a=innerWidth/innerHeight; camera.position.set(0,0.1, a<1 ? 8.6/(a*0.92) : 8.6); camera.lookAt(0,0,0); }
+    fitCamera();
 
-    // image-based lighting → real metal reflections (PBR), no HDRI file needed
     const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.035).texture;
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; // instant lighting
+    new RGBELoader().load('/static/models/env.hdr', (hdr)=>{               // real HDRI reflections (not shown)
+      hdr.mapping = THREE.EquirectangularReflectionMapping;
+      scene.environment = pmrem.fromEquirectangular(hdr).texture; hdr.dispose();
+    });
 
-    // restrained product-hero lighting
-    const key = new THREE.DirectionalLight(0xffffff, 2.7); key.position.set(5, 7, 6); scene.add(key);
-    const back = new THREE.DirectionalLight(0xbfe9ff, 1.6); back.position.set(-6, 2, -5); scene.add(back);
-    const under = new THREE.PointLight(0x4fe0b8, 6, 18); under.position.set(-2.5, -2, 3); scene.add(under);
-    scene.add(new THREE.AmbientLight(0x1a2630, 0.5));
+    const key = new THREE.DirectionalLight(0xffffff, 2.3); key.position.set(5,7,6); scene.add(key);
+    const back = new THREE.DirectionalLight(0xbfe9ff, 1.5); back.position.set(-6,2,-5); scene.add(back);
+    scene.add(new THREE.AmbientLight(0x1a2630, 0.4));
 
-    // faint atmosphere
-    const dg = new THREE.BufferGeometry(); const N=420, P=new Float32Array(N*3);
+    const dg=new THREE.BufferGeometry(), N=380, P=new Float32Array(N*3);
     for(let i=0;i<N*3;i++) P[i]=(Math.random()-0.5)*26;
     dg.setAttribute('position', new THREE.BufferAttribute(P,3));
-    const dust = new THREE.Points(dg, new THREE.PointsMaterial({color:0x4fe0b8,size:0.014,transparent:true,opacity:0.34,depthWrite:false}));
-    scene.add(dust);
+    scene.add(new THREE.Points(dg, new THREE.PointsMaterial({color:0x33ffb0,size:0.013,transparent:true,opacity:0.3,depthWrite:false})));
 
-    const rig = new THREE.Group(); scene.add(rig);
-    const model = new THREE.Group(); model.scale.setScalar(0.001); rig.add(model);
+    const rig = new THREE.Group(); scene.add(rig);  // centered — never translated
 
-    new GLTFLoader().load('/static/models/sniper.glb', (gltf)=>{
-      const o = gltf.scene;
-      const box = new THREE.Box3().setFromObject(o), s=box.getSize(new THREE.Vector3()), c=box.getCenter(new THREE.Vector3());
-      const sc = 5.4 / Math.max(s.x,s.y,s.z);
-      o.scale.setScalar(sc);
-      o.position.set(-c.x*sc, -c.y*sc, -c.z*sc);
-      model.add(o);
-      model.rotation.set(0.05, -0.4, 0.04);
-      // fade/scale in
-      const t0=performance.now();
-      (function grow(){ const k=Math.min(1,(performance.now()-t0)/900); model.scale.setScalar(0.001+(1-0.001)*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(grow); })();
-    }, undefined, ()=>{});
+    // green voxel-noise dissolve injected into each material; returns {uD} control
+    function makeDissolve(root, scaleDiv){
+      const u = { uD:{value:0}, uEdge:{value:0.06}, uScale:{value:1/scaleDiv}, uEC:{value:new THREE.Color(0x2bff9e)} };
+      root.traverse(o=>{ if(o.isMesh){ (Array.isArray(o.material)?o.material:[o.material]).forEach(mat=>{
+        mat.onBeforeCompile=(sh)=>{
+          sh.uniforms.uD=u.uD; sh.uniforms.uEdge=u.uEdge; sh.uniforms.uScale=u.uScale; sh.uniforms.uEC=u.uEC;
+          sh.vertexShader = sh.vertexShader
+            .replace('#include <common>','#include <common>\nvarying vec3 vDP;')
+            .replace('#include <begin_vertex>','#include <begin_vertex>\nvDP = position;');
+          sh.fragmentShader = sh.fragmentShader
+            .replace('#include <common>','#include <common>\nvarying vec3 vDP;uniform float uD;uniform float uEdge;uniform float uScale;uniform vec3 uEC;\nfloat dh(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}')
+            .replace('#include <dithering_fragment>','#include <dithering_fragment>\n{float n=dh(floor(vDP*uScale));if(n<uD)discard;float e=(1.0-clamp((n-uD)/uEdge,0.0,1.0))*smoothstep(0.0,0.025,uD);gl_FragColor.rgb+=uEC*e*3.6;}');
+        };
+        mat.needsUpdate=true;
+      }); }});
+      return u;
+    }
 
-    // HDR + 4x MSAA render target → crisp anti-aliased edges and high-quality, band-free bloom
-    const hdrRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 });
+    let rifleU=null, warthogU=null, warthog=null;
+    function place(o, target){ const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
+      const sc=5.4/Math.max(s.x,s.y,s.z); o.scale.setScalar(sc); o.position.set(-c.x*sc,-c.y*sc,-c.z*sc); return Math.max(s.x,s.y,s.z); }
+
+    new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; const md=place(o); rig.add(o); rifleU=makeDissolve(o, md/26); }, undefined, ()=>{});
+    // warthog slot — auto-loads + dissolves in when a downloadable warthog.glb is present
+    new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; const md=place(o); o.visible=true; rig.add(o); warthog=o; warthogU=makeDissolve(o, md/26); warthogU.uD.value=1; }, undefined, ()=>{});
+
+    const hdrRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type:THREE.HalfFloatType, samples:4 });
     const composer = new EffectComposer(renderer, hdrRT);
-    composer.setPixelRatio(Math.min(2, devicePixelRatio));
-    composer.setSize(innerWidth, innerHeight);
+    composer.setPixelRatio(Math.min(2, devicePixelRatio)); composer.setSize(innerWidth, innerHeight);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.52, 0.85, 0.82);
-    composer.addPass(bloom);
-    composer.addPass(new OutputPass());
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.44, 0.8, 0.85);
+    composer.addPass(bloom); composer.addPass(new OutputPass());
 
-    let prog=0, tgt=0;
-    const onScroll=()=>{ tgt = Math.min(1, scrollY / innerHeight); };
-    addEventListener('scroll', onScroll, {passive:true}); onScroll();
-
-    const clock=new THREE.Clock();
+    const bottomEl = document.querySelector('.bottom');
+    const clamp=(x)=>Math.min(1,Math.max(0,x));
     (function loop(){
       requestAnimationFrame(loop);
-      const t=clock.getElapsedTime();
-      prog += (tgt-prog)*0.06;
-      model.rotation.y = -0.4 + t*0.16 + prog*Math.PI*1.4;
-      rig.position.x = prog*2.7;
-      rig.position.y = Math.sin(t*0.6)*0.08 + prog*0.9;
-      rig.rotation.z = -prog*0.2;
-      rig.scale.setScalar(1 - prog*0.22);
-      bloom.strength = 0.34 + prog*0.3;
-      under.intensity = 5 + Math.sin(t*1.3)*1.5;
-      dust.rotation.y = t*0.015;
-      camera.position.x += ((prog*-0.5)-camera.position.x)*0.04;
-      camera.lookAt(0,0,0);
+      const docH = document.documentElement.scrollHeight - innerHeight;
+      const p = docH>0 ? scrollY/docH : 0;               // scroll-LOCKED, no smoothing/spring
+      rig.rotation.set(0.05, p*Math.PI*2.4, 0);          // tight rotation only — no translation, no auto-spin
+      const r = bottomEl.getBoundingClientRect();
+      const d = clamp(((innerHeight - r.top)/innerHeight - 0.18)/0.55);  // dissolve as bottom timer arrives
+      if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT
+      if(warthogU) warthogU.uD.value = 1.0 - d;          // warthog dissolves IN
       composer.render();
     })();
 
-    addEventListener('resize', ()=>{
-      camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight);
-    });
+    addEventListener('resize', ()=>{ fitCamera(); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight); });
 
     const io=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); }),{threshold:0.1});
     document.querySelectorAll('.panel').forEach(p=>io.observe(p));
@@ -224,30 +230,30 @@
       d.forEach((p,i)=>{ const tr=document.createElement('tr');
         tr.appendChild(cell(i+1,'rank')); tr.appendChild(cell(p.gamertag,'name')); tr.appendChild(cell(p.games));
         tr.appendChild(cell(p.kills)); tr.appendChild(cell(p.deaths)); tr.appendChild(cell(p.assists));
-        tr.appendChild(cell(p.net_kd,'kd')); tr.appendChild(cell(Math.round(p.win_rate*100)+'%', p.win_rate>=0.5?'win':'loss'));
-        tb.appendChild(tr); });
+        tr.appendChild(cell(p.net_kd,'kd')); tr.appendChild(cell(Math.round(p.win_rate*100)+'%', p.win_rate>=0.5?'win':'loss')); tb.appendChild(tr); });
     });
     fetch('/api/gametypes').then(r=>r.json()).then(d=>{
       const wrap=document.getElementById('gametypes'), grid=document.createElement('div'); grid.className='gt-grid';
       Object.keys(d).forEach(gt=>{ const panel=document.createElement('div'); panel.className='panel in';
         const h=document.createElement('div'); h.className='gt-h'; h.textContent=gt; panel.appendChild(h);
-        const table=document.createElement('table'); table.innerHTML='<thead><tr><th>Username</th><th>K/D</th><th>GP</th></tr></thead>';
+        const sc=document.createElement('div'); sc.className='scroller';
+        const table=document.createElement('table'); table.className='gt'; table.innerHTML='<thead><tr><th>Username</th><th>K/D</th><th>GP</th></tr></thead>';
         const tb=document.createElement('tbody');
-        d[gt].forEach(p=>{ const tr=document.createElement('tr');
-          tr.appendChild(cell(p.gamertag,'name')); tr.appendChild(cell(p.net_kd,'kd')); tr.appendChild(cell(p.games)); tb.appendChild(tr); });
-        table.appendChild(tb); panel.appendChild(table); grid.appendChild(panel); });
+        d[gt].forEach(p=>{ const tr=document.createElement('tr'); tr.appendChild(cell(p.gamertag,'name')); tr.appendChild(cell(p.net_kd,'kd')); tr.appendChild(cell(p.games)); tb.appendChild(tr); });
+        table.appendChild(tb); sc.appendChild(table); panel.appendChild(sc); grid.appendChild(panel); });
       wrap.appendChild(grid);
     });
 
-    // countdown — 7:00 PM Central (Austin), July 6 2026 (CDT = -05:00)
+    // countdown — 7:00 PM Central (Austin), July 6 2026 (CDT = -05:00) — top bar + big bottom
     const TARGET = new Date('2026-07-06T19:00:00-05:00');
-    const cdt = document.getElementById('cd-time');
-    (function cdTick(){
+    const cdt=document.getElementById('cd-time'), big=document.getElementById('big-time'), pad=n=>String(n).padStart(2,'0');
+    (function tick(){
       const ms = TARGET - new Date();
-      if(ms<=0){ cdt.textContent='LIVE NOW'; }
-      else { const d=Math.floor(ms/864e5),h=Math.floor(ms/36e5)%24,m=Math.floor(ms/6e4)%60,s=Math.floor(ms/1e3)%60,p=n=>String(n).padStart(2,'0');
-        cdt.innerHTML=`<b>${d}</b>d <b>${p(h)}</b>h <b>${p(m)}</b>m <b>${p(s)}</b>s`; }
-      setTimeout(cdTick,1000);
+      if(ms<=0){ cdt.textContent='LIVE NOW'; big.textContent='LIVE NOW'; }
+      else { const d=Math.floor(ms/864e5),h=Math.floor(ms/36e5)%24,m=Math.floor(ms/6e4)%60,s=Math.floor(ms/1e3)%60;
+        cdt.innerHTML=`<b>${d}</b>d <b>${pad(h)}</b>h <b>${pad(m)}</b>m <b>${pad(s)}</b>s`;
+        big.innerHTML=`<b>${d}</b><small>d</small> <b>${pad(h)}</b><small>h</small> <b>${pad(m)}</b><small>m</small> <b>${pad(s)}</b><small>s</small>`; }
+      setTimeout(tick,1000);
     })();
 
     if('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
