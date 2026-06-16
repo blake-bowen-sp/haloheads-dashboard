@@ -99,7 +99,7 @@
 
   <section class="hero">
     <div class="kicker">Master Chief Collection · Carnage Reports</div>
-    <h1 class="title">HALOHEADS</h1>
+    <h1 class="title">HALO<span id="hx">H</span>EADS</h1>
     <p class="sub">Every kill, death, and assist — tracked by gamertag.</p>
     <div class="cue"></div>
   </section>
@@ -148,12 +148,16 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060709);   // black bg — HDRI used for reflections only
     const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
-    const rifleRig = new THREE.Group(); scene.add(rifleRig);       // centered — in the H
+    const rifleRig = new THREE.Group(); scene.add(rifleRig);       // aligned to the H in HEADS
     const warthogRig = new THREE.Group(); scene.add(warthogRig);   // dropped — under the countdown
+    function visWH(z){ const h = 2*z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); return [h*(innerWidth/innerHeight), h]; }
+    function alignRifle(){ const el=document.getElementById('hx'); if(!el) return;        // centre the rifle on the H of HEADS
+      const r=el.getBoundingClientRect(); rifleRig.position.x = ((r.left + r.width/2)/innerWidth - 0.5) * visWH(camera.position.z)[0]; }
     function fitCamera(){ const a=innerWidth/innerHeight; const z = a<1 ? 8.6/(a*0.92) : 8.6;
       camera.position.set(0,0.1,z); camera.lookAt(0,0,0);
-      const visH = 2*z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); warthogRig.position.set(0, -visH*(a<1?0.05:0.18), 0); }
+      warthogRig.position.set(0, -visWH(z)[1]*(a<1?0.05:0.18), 0); alignRifle(); }
     fitCamera();
+    if(document.fonts) document.fonts.ready.then(alignRifle);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; // instant lighting
@@ -171,7 +175,7 @@
     dg.setAttribute('position', new THREE.BufferAttribute(P,3));
     scene.add(new THREE.Points(dg, new THREE.PointsMaterial({color:0x33ffb0,size:0.013,transparent:true,opacity:0.3,depthWrite:false})));
 
-    const SCALE = 6.2;   // shared voxel scale → identical voxel size on rifle + warthog
+    const SCALE = 12.4;   // shared voxel scale → identical voxel size on rifle + warthog
     const dissolveList = [];
     // green cyber-voxel dissolve sampled in rig-local space (world-unit, rotation-stable) so every mesh shares one noise scale
     function makeDissolve(root, rigRef){
