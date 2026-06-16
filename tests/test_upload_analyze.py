@@ -104,6 +104,27 @@ def test_not_a_scoreboard(client, tmp_path, monkeypatch, sample_bytes):
     assert len(rejected) == 1
 
 
+def test_no_readable_stats(client, tmp_path, monkeypatch, sample_bytes):
+    from haloheads.schema import CarnageReport, PlayerRow
+    zero = CarnageReport(
+        winning_team="GREEN", gametype="TEAM SLAYER", map=None,
+        players=[PlayerRow(gamertag="Ghost", clan_tag=None, team="GREEN", score=0, kills=0, assists=0, deaths=0)],
+    )
+    monkeypatch.setattr("app.extract_with_gemini", lambda data: zero)
+
+    r = _post_image(client, sample_bytes)
+    assert r.status_code == 200
+    assert r.get_json()["status"] == "no_readable_stats"
+
+    store = SqliteStore(str(tmp_path / "stats.db"))
+    assert len(store.all_matches()) == 0
+
+    storage = LocalStorage(str(tmp_path / "bucket"))
+    assert storage.list_pending() == []
+    review = sorted((tmp_path / "bucket" / "review").glob("*.jpg"))
+    assert len(review) == 1
+
+
 def test_graceful_degrade(client, tmp_path, monkeypatch, sample_bytes):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 

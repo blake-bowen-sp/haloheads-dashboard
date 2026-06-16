@@ -65,6 +65,10 @@ def upload():
         app.logger.exception("gemini analysis failed")
         return jsonify({"ok": True, "key": key, "status": "analysis_failed"})
 
+    if all(p.score == 0 and p.kills == 0 and p.assists == 0 and p.deaths == 0 for p in report.players):
+        storage.move(key, "review/")
+        return jsonify({"ok": True, "key": key, "status": "no_readable_stats"})
+
     now = datetime.now(timezone.utc).isoformat()
     match, players = build_docs(
         report,
