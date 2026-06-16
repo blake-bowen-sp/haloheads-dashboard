@@ -99,7 +99,7 @@
 
   <section class="hero">
     <div class="kicker">Master Chief Collection · Carnage Reports</div>
-    <h1 class="title">HALO<span id="hx">H</span>EADS</h1>
+    <h1 class="title"><span id="brL">HA</span>LO<span id="hx">H</span>EA<span id="brR">DS</span></h1>
     <p class="sub">Every kill, death, and assist — tracked by gamertag.</p>
     <div class="cue"></div>
   </section>
@@ -150,14 +150,19 @@
     const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
     const rifleRig = new THREE.Group(); scene.add(rifleRig);       // aligned to the H in HEADS
     const warthogRig = new THREE.Group(); scene.add(warthogRig);   // dropped — under the countdown
+    const brLeftRig = new THREE.Group(); scene.add(brLeftRig);     // battle rifle behind HA
+    const brRightRig = new THREE.Group(); scene.add(brRightRig);   // battle rifle behind DS
+    const brLeftTilt = new THREE.Group(); brLeftTilt.rotation.x = -Math.PI/2; brLeftRig.add(brLeftTilt);    // stand barrel UP
+    const brRightTilt = new THREE.Group(); brRightTilt.rotation.x = -Math.PI/2; brRightRig.add(brRightTilt);
     function visWH(z){ const h = 2*z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); return [h*(innerWidth/innerHeight), h]; }
-    function alignRifle(){ const el=document.getElementById('hx'); if(!el) return;        // centre the rifle on the H of HEADS
-      const r=el.getBoundingClientRect(); rifleRig.position.x = ((r.left + r.width/2)/innerWidth - 0.5) * visWH(camera.position.z)[0]; }
+    function setRigX(rig, id){ const el=document.getElementById(id); if(!el||!rig) return;                  // centre a rig on its letters
+      const r=el.getBoundingClientRect(); rig.position.x = ((r.left + r.width/2)/innerWidth - 0.5) * visWH(camera.position.z)[0]; }
+    function alignRigs(){ setRigX(rifleRig,'hx'); setRigX(brLeftRig,'brL'); setRigX(brRightRig,'brR'); }
     function fitCamera(){ const a=innerWidth/innerHeight; const z = a<1 ? 8.6/(a*0.92) : 8.6;
       camera.position.set(0,0.1,z); camera.lookAt(0,0,0);
-      warthogRig.position.set(0, -visWH(z)[1]*(a<1?0.05:0.18), 0); alignRifle(); }
+      warthogRig.position.set(0, -visWH(z)[1]*(a<1?0.05:0.18), 0); alignRigs(); }
     fitCamera();
-    if(document.fonts) document.fonts.ready.then(alignRifle);
+    if(document.fonts) document.fonts.ready.then(alignRigs);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; // instant lighting
@@ -196,13 +201,20 @@
       return u;
     }
 
-    let rifleU=null, warthogU=null;
+    let rifleU=null, warthogU=null, brLeftU=null, brRightU=null;
     function place(o, target){ const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
       const sc=target/Math.max(s.x,s.y,s.z); o.scale.setScalar(sc); o.position.set(-c.x*sc,-c.y*sc,-c.z*sc); }
 
     const portrait = innerWidth/innerHeight < 1;
     new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; place(o,5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig); }, undefined, ()=>{});
     new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig); warthogU.uD.value=1; }, undefined, ()=>{});
+    const BR_SIZE = portrait ? 2.5 : 3.0;
+    new GLTFLoader().load('/static/models/br55.glb', (g)=>{        // one fetch → clone for the second (own materials so each dissolves alone)
+      const a=g.scene, b=a.clone(true);
+      b.traverse(o=>{ if(o.isMesh) o.material = Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone(); });
+      place(a, BR_SIZE); brLeftTilt.add(a);  brLeftU=makeDissolve(a, brLeftRig);
+      place(b, BR_SIZE); brRightTilt.add(b); brRightU=makeDissolve(b, brRightRig);
+    }, undefined, ()=>{});
 
     const hdrRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type:THREE.HalfFloatType, samples: MOBILE?2:4 });
     const composer = new EffectComposer(renderer, hdrRT);
@@ -222,12 +234,19 @@
       const ry = p*Math.PI*2.4;                          // tight rotation only — no auto-spin
       rifleRig.rotation.set(0.05, ry, 0);
       warthogRig.rotation.y = ry;
-      rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld();
+      brLeftRig.rotation.y  = -Math.PI/2 + p*Math.PI*3.0;            // left BR: turntable spin about the up axis
+      brRightRig.rotation.y =  Math.PI/2 + Math.sin(p*Math.PI*4)*0.62; // right BR: rocks left & right
+      rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld(); brLeftRig.updateMatrixWorld(); brRightRig.updateMatrixWorld();
       dissolveList.forEach(({u,rig})=>{ u.uRigInv.value.copy(rig.matrixWorld).invert(); });   // un-rotate → stable, shared voxel scale
       const rTop = bottomTop - scrollY;                  // viewport-relative top, computed without touching layout
       const d = clamp(((innerHeight - rTop)/innerHeight - 0.5)/0.44);  // dissolve only once the card clears the model centre
       if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT (centered, in the H)
+      if(brLeftU) brLeftU.uD.value = d;                  // both battle rifles dissolve OUT at the bottom too
+      if(brRightU) brRightU.uD.value = d;
       if(warthogU) warthogU.uD.value = 1.0 - d;          // warthog dissolves IN (bigger, under the countdown)
+      const showTop = d < 0.999, showBot = d > 0.001;    // skip geometry once fully dissolved (never all 4 at once)
+      rifleRig.visible = brLeftRig.visible = brRightRig.visible = showTop;
+      warthogRig.visible = showBot;
       composer.render();
     })();
 
