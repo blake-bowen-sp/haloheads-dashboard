@@ -45,3 +45,17 @@ def test_upload_then_dashboard(live_server, page, sample_image_path):
     body = page.inner_text("#leaderboard")
     assert "Cyborg800" in body
     assert "ELIMINADOR" in body
+
+
+def test_multi_upload(live_server, page, sample_image_path):
+    from pathlib import Path
+    from haloheads.storage import get_storage
+
+    second = Path(sample_image_path).parent / "scoreboard.png"
+    page.goto(f"{live_server}/upload")
+    page.set_input_files("#file", [str(sample_image_path), str(second)])
+    assert page.locator(".thumb").count() == 2
+    page.click("#submit")
+    page.wait_for_selector("#result:has-text('2/2')", timeout=15000)
+
+    assert len(get_storage().list_pending()) == 2

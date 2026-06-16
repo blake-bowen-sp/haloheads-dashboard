@@ -181,12 +181,19 @@ tr:hover {
 }
 
 #preview {
-    display: block;
-    max-width: 320px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.thumb {
+    width: 90px;
+    height: 90px;
+    object-fit: cover;
     border: 1px solid #00ff9c;
     border-radius: 4px;
-    box-shadow: 0 0 12px rgba(0, 255, 156, 0.3);
-    margin-bottom: 16px;
+    box-shadow: 0 0 8px rgba(0, 255, 156, 0.3);
 }
 
 #submit {

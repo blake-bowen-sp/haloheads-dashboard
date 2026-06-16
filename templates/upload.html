@@ -19,12 +19,12 @@
 
   <div class="upload-form">
     <div class="field-group">
-      <input type="file" accept="image/*" id="file">
+      <input type="file" accept="image/*" multiple id="file">
     </div>
     <div class="field-group">
       <input type="text" id="map" placeholder="map name (optional)">
     </div>
-    <img id="preview" style="display:none">
+    <div id="preview" class="preview-grid"></div>
     <button id="submit">UPLOAD</button>
     <div id="result"></div>
   </div>
@@ -33,34 +33,44 @@
 </div>
 
 <script>
-document.getElementById("file").addEventListener("change", function() {
-  const file = this.files[0];
-  if (!file) return;
-  const preview = document.getElementById("preview");
-  preview.src = URL.createObjectURL(file);
-  preview.style.display = "block";
+const fileInput = document.getElementById("file");
+const preview = document.getElementById("preview");
+const result = document.getElementById("result");
+
+fileInput.addEventListener("change", function() {
+  preview.innerHTML = "";
+  const files = this.files;
+  for (let i = 0; i < files.length; i++) {
+    const img = document.createElement("img");
+    img.className = "thumb";
+    img.src = URL.createObjectURL(files[i]);
+    preview.appendChild(img);
+  }
+  result.textContent = files.length ? `${files.length} photo${files.length > 1 ? "s" : ""} selected` : "";
 });
 
 document.getElementById("submit").addEventListener("click", async function() {
-  const file = document.getElementById("file").files[0];
-  const result = document.getElementById("result");
-  if (!file) {
-    result.textContent = "Pick a photo first";
+  const files = fileInput.files;
+  if (!files.length) {
+    result.textContent = "Pick photo(s) first";
     return;
   }
   this.disabled = true;
-  result.textContent = "";
-  const fd = new FormData();
-  fd.append("image", file);
-  fd.append("map", document.getElementById("map").value);
-  try {
-    const res = await fetch("/upload", { method: "POST", body: fd });
-    result.textContent = res.ok
-      ? "Uploaded ✓ — analyze later to see stats"
-      : "Upload failed";
-  } catch {
-    result.textContent = "Upload failed";
+  const map = document.getElementById("map").value;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < files.length; i++) {
+    result.textContent = `Uploading ${i + 1}/${files.length}…`;
+    const fd = new FormData();
+    fd.append("image", files[i]);
+    fd.append("map", map);
+    try {
+      const res = await fetch("/upload", { method: "POST", body: fd });
+      res.ok ? ok++ : fail++;
+    } catch {
+      fail++;
+    }
   }
+  result.textContent = `Uploaded ${ok}/${files.length}` + (fail ? ` — ${fail} failed` : " ✓ — analyze later to see stats");
   this.disabled = false;
 });
 
