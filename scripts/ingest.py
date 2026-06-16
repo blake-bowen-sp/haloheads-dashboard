@@ -13,6 +13,13 @@ from haloheads.storage import get_storage
 from haloheads.store import get_store
 
 
+def _file_away(storage, key):
+    try:
+        storage.move(key, "analyzed/")
+    except Exception:
+        pass
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Ingest Claude Code's extracted carnage reports into the store."
@@ -36,6 +43,7 @@ def main(argv=None):
         info = manifest.get(key, {})
         h = info.get("image_hash") or image_hash(storage.read(key))
         if store.match_exists(h):
+            _file_away(storage, key)
             n_skipped += 1
             continue
         match, players = build_docs(
@@ -47,13 +55,11 @@ def main(argv=None):
             analyzed_at=now_iso,
         )
         if store.game_exists(match["game_hash"]):
+            _file_away(storage, key)
             n_skipped += 1
             continue
         store.add_match(match, players)
-        try:
-            storage.move(key, "analyzed/")
-        except Exception:
-            pass
+        _file_away(storage, key)
         n_new += 1
         n_players += len(players)
 
