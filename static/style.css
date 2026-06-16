@@ -81,3 +81,159 @@ tr:hover {
     pointer-events: none;
     z-index: -1;
 }
+
+/* ── Dashboard top bar ── */
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+}
+
+.top-bar .title {
+    margin-bottom: 0;
+}
+
+.upload-link {
+    color: #00ff9c;
+    border: 1px solid #00ff9c;
+    padding: 8px 16px;
+    text-decoration: none;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    letter-spacing: 1px;
+    box-shadow: 0 0 8px rgba(0, 255, 156, 0.3);
+    transition: box-shadow 0.2s;
+}
+
+.upload-link:hover {
+    box-shadow: 0 0 16px rgba(0, 255, 156, 0.7);
+}
+
+/* ── Section headings ── */
+.section {
+    margin-bottom: 48px;
+}
+
+.section-heading {
+    color: #00e5ff;
+    font-size: 14px;
+    letter-spacing: 3px;
+    text-shadow: 0 0 8px #00e5ff;
+    margin: 0 0 12px 0;
+    text-transform: uppercase;
+}
+
+/* ── Per-gametype tables ── */
+.gametype-table {
+    margin-bottom: 24px;
+}
+
+/* ── Empty leaderboard message ── */
+.empty-msg {
+    color: rgba(0, 229, 255, 0.6);
+    font-style: italic;
+    padding: 24px;
+}
+
+/* ── Upload form ── */
+.upload-form {
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.field-group {
+    margin-bottom: 16px;
+}
+
+#file {
+    display: block;
+    width: 100%;
+    color: #00ff9c;
+    background: transparent;
+    border: 1px solid #00ff9c;
+    padding: 10px;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+#map {
+    display: block;
+    width: 100%;
+    background: #0a0a0a;
+    border: 1px solid #00ff9c;
+    color: #00ff9c;
+    font-family: "Courier New", monospace;
+    font-size: 14px;
+    padding: 10px;
+    box-sizing: border-box;
+    outline: none;
+}
+
+#map::placeholder {
+    color: rgba(0, 255, 156, 0.4);
+}
+
+#map:focus {
+    box-shadow: 0 0 10px rgba(0, 255, 156, 0.4);
+}
+
+#preview {
+    display: block;
+    max-width: 320px;
+    border: 1px solid #00ff9c;
+    border-radius: 4px;
+    box-shadow: 0 0 12px rgba(0, 255, 156, 0.3);
+    margin-bottom: 16px;
+}
+
+#submit {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: 1px solid #00e5ff;
+    color: #00e5ff;
+    font-family: "Courier New", monospace;
+    font-size: 15px;
+    letter-spacing: 3px;
+    padding: 12px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+    transition: box-shadow 0.2s;
+    margin-bottom: 16px;
+}
+
+#submit:hover:not(:disabled) {
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.7);
+}
+
+#submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#result {
+    color: #00e5ff;
+    font-size: 14px;
+    letter-spacing: 1px;
+    min-height: 20px;
+    text-align: center;
+}
+
+/* ── Nav back link ── */
+.nav-back {
+    margin-top: 32px;
+    text-align: center;
+}
+
+.nav-back a {
+    color: rgba(0, 255, 156, 0.6);
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.nav-back a:hover {
+    color: #00ff9c;
+}

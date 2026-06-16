@@ -1,102 +1,117 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Haloheads Dashstats</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <title>Haloheads Tourney</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#00ff9c">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 </head>
 <body>
 <canvas id="matrix-rain"></canvas>
 <div class="scanlines"></div>
 
 <div class="container">
+  <div class="top-bar">
     <h1 class="title">HALOHEADS TOURNEY</h1>
+    <a href="/upload" class="upload-link">+ Upload</a>
+  </div>
 
-    <table id="stats-table">
-        <thead>
-            <tr>
-                <th>GAMERTAG</th>
-                <th>KILLS</th>
-                <th>DEATHS</th>
-                <th>ASSISTS</th>
-                <th>SCORE</th>
-                <th>RESULT</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
+  <section class="section">
+    <h2 class="section-heading">LEADERBOARD</h2>
+    <table id="leaderboard">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>GAMERTAG</th>
+          <th>GP</th>
+          <th>K</th>
+          <th>D</th>
+          <th>A</th>
+          <th>K/D</th>
+          <th>WIN%</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
     </table>
+  </section>
+
+  <section class="section" id="gametypes-section"></section>
 </div>
 
 <script>
-fetch('/api/playerstats')
-    .then(res => res.json())
-    .then(data => {
-        const tbody = document.querySelector("#stats-table tbody");
-
-        data.forEach(player => {
-            const row = document.createElement("tr");
-
-            row.innerHTML = `
-                <td>${player.gamertag || "-"}</td>
-                <td>${player.kills || 0}</td>
-                <td>${player.deaths || 0}</td>
-                <td>${player.assists || 0}</td>
-                <td>${player.score || 0}</td>
-                <td class="${player.result === 'WON' ? 'win' : 'loss'}">
-                    ${player.result || "-"}
-                </td>
-            `;
-
-            tbody.appendChild(row);
-        });
+fetch("/api/leaderboard")
+  .then(r => r.json())
+  .then(data => {
+    const tbody = document.querySelector("#leaderboard tbody");
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-msg">No games analyzed yet — upload a carnage report and run the analyzer.</td></tr>';
+      return;
+    }
+    data.forEach((p, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${i + 1}</td><td>${p.gamertag}</td><td>${p.games}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td><td>${p.net_kd}</td><td>${Math.round(p.win_rate * 100)}%</td>`;
+      tbody.appendChild(tr);
     });
-</script>
-<script>
-/* ================================
-   MATRIX DIGITAL RAIN
-================================ */
+  });
 
+fetch("/api/gametypes")
+  .then(r => r.json())
+  .then(data => {
+    const section = document.getElementById("gametypes-section");
+    Object.keys(data).forEach(gt => {
+      const rows = data[gt];
+      const heading = document.createElement("h2");
+      heading.className = "section-heading";
+      heading.textContent = gt;
+      section.appendChild(heading);
+
+      const table = document.createElement("table");
+      table.className = "gametype-table";
+      table.innerHTML = "<thead><tr><th>GAMERTAG</th><th>K/D</th><th>GP</th></tr></thead>";
+      const tbody = document.createElement("tbody");
+      rows.forEach(p => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${p.gamertag}</td><td>${p.net_kd}</td><td>${p.games}</td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      section.appendChild(table);
+    });
+  });
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/static/sw.js").catch(() => {});
+}
+</script>
+
+<script>
 const canvas = document.getElementById("matrix-rain");
 const ctx = canvas.getContext("2d");
-
 canvas.height = window.innerHeight;
 canvas.width = window.innerWidth;
-
 const letters = "アァイィウヴエカキクケコサシスセソABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const fontSize = 16;
 const columns = canvas.width / fontSize;
-
 const drops = [];
-for (let i = 0; i < columns; i++) {
-    drops[i] = Math.random() * -100;
-}
-
+for (let i = 0; i < columns; i++) drops[i] = Math.random() * -100;
 function draw() {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "#00ff9c";
-    ctx.font = fontSize + "px monospace";
-
-    for (let i = 0; i < drops.length; i++) {
-        const text = letters.charAt(Math.floor(Math.random() * letters.length));
-        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-            drops[i] = 0;
-        }
-
-        drops[i]++;
-    }
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#00ff9c";
+  ctx.font = fontSize + "px monospace";
+  for (let i = 0; i < drops.length; i++) {
+    ctx.fillText(letters.charAt(Math.floor(Math.random() * letters.length)), i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
 }
-
 setInterval(draw, 50);
-
-window.addEventListener("resize", () => {
-    canvas.height = window.innerHeight;
-    canvas.width = window.innerWidth;
-});
+window.addEventListener("resize", () => { canvas.height = window.innerHeight; canvas.width = window.innerWidth; });
 </script>
-
 
 </body>
 </html>

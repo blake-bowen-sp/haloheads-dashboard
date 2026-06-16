@@ -1,29 +1,97 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Upload Match Stats</title>
+  <meta charset="UTF-8">
+  <title>Upload Carnage Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#00ff9c">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 </head>
-<body style="background:black;color:#00ff9c;font-family:monospace">
+<body>
+<canvas id="matrix-rain"></canvas>
+<div class="scanlines"></div>
 
-<h2>Select Match Screenshot</h2>
+<div class="container">
+  <h1 class="title">UPLOAD CARNAGE REPORT</h1>
 
-<input type="file" id="fileInput" accept="image/*">
+  <div class="upload-form">
+    <div class="field-group">
+      <input type="file" accept="image/*" id="file">
+    </div>
+    <div class="field-group">
+      <input type="text" id="map" placeholder="map name (optional)">
+    </div>
+    <img id="preview" style="display:none">
+    <button id="submit">UPLOAD</button>
+    <div id="result"></div>
+  </div>
+
+  <div class="nav-back"><a href="/">← Dashboard</a></div>
+</div>
 
 <script>
-document.getElementById("fileInput").addEventListener("change", async function() {
-    const file = this.files[0];
-
-    const res = await fetch("/generate-upload-url");
-    const data = await res.json();
-
-    await fetch(data.upload_url, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file
-    });
-
-    alert("Upload complete. Processing...");
+document.getElementById("file").addEventListener("change", function() {
+  const file = this.files[0];
+  if (!file) return;
+  const preview = document.getElementById("preview");
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
 });
+
+document.getElementById("submit").addEventListener("click", async function() {
+  const file = document.getElementById("file").files[0];
+  const result = document.getElementById("result");
+  if (!file) {
+    result.textContent = "Pick a photo first";
+    return;
+  }
+  this.disabled = true;
+  result.textContent = "";
+  const fd = new FormData();
+  fd.append("image", file);
+  fd.append("map", document.getElementById("map").value);
+  try {
+    const res = await fetch("/upload", { method: "POST", body: fd });
+    result.textContent = res.ok
+      ? "Uploaded ✓ — analyze later to see stats"
+      : "Upload failed";
+  } catch {
+    result.textContent = "Upload failed";
+  }
+  this.disabled = false;
+});
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/static/sw.js").catch(() => {});
+}
+</script>
+
+<script>
+const canvas = document.getElementById("matrix-rain");
+const ctx = canvas.getContext("2d");
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+const letters = "アァイィウヴエカキクケコサシスセソABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const fontSize = 16;
+const columns = canvas.width / fontSize;
+const drops = [];
+for (let i = 0; i < columns; i++) drops[i] = Math.random() * -100;
+function draw() {
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#00ff9c";
+  ctx.font = fontSize + "px monospace";
+  for (let i = 0; i < drops.length; i++) {
+    ctx.fillText(letters.charAt(Math.floor(Math.random() * letters.length)), i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+setInterval(draw, 50);
+window.addEventListener("resize", () => { canvas.height = window.innerHeight; canvas.width = window.innerWidth; });
 </script>
 
 </body>
