@@ -6,7 +6,7 @@ import requests
 
 from .schema import CarnageReport, validate_report
 
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-3.5-flash"
 
 PROMPT = (
     "This is a photo of a video-game post-game scoreboard (Halo Master Chief Collection carnage report). "
