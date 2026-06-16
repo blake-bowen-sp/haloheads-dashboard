@@ -1,14 +1,14 @@
 # Haloheads Stats
 
-Haloheads is a stats-tracking system for a private Halo game group. Players upload screenshots of in-game post-game carnage reports (the end-of-match scoreboard) to a web app. A separate local analyzer uses Claude vision to extract per-player stats from each image and write them to a datastore. The dashboard then surfaces leaderboards, MVPs, game-type breakdowns, and per-player history, all keyed by gamertag.
+Haloheads is a stats-tracking system for a private Halo game group. Players upload photos of in-game post-game carnage reports (the end-of-match scoreboard) to a web app. On demand, **Claude Code reads the photos and extracts per-player stats** — no API key required — and writes them to a datastore. The dashboard then surfaces leaderboards, MVPs, game-type breakdowns, and per-player history, all keyed by gamertag.
 
 ## How it works
 
-1. A player uploads a post-game screenshot at `/upload` — the file is stored to a bucket (GCS in prod, local filesystem in dev).
-2. On demand, Aaron (or an agent) runs `scripts/analyze.py` locally. It pulls un-analyzed photos from the bucket, sends each to Claude for stat extraction, and writes results to the store (Firestore in prod, SQLite in dev).
-3. The Flask dashboard (`app.py`, deployed to Cloud Run) reads the store and serves leaderboard and player pages.
+1. A player uploads a post-game photo at `/upload` — the file is stored to a bucket (GCS in prod, local filesystem in dev). The gamertags come from the photo, so there's nothing to type.
+2. On demand, Aaron tells Claude Code to analyze. Claude Code stages the un-analyzed photos (`scripts/stage.py`), **reads each one with its own vision**, and ingests the extracted stats (`scripts/ingest.py`) into the store (Firestore in prod, SQLite in dev). No Anthropic API key is involved.
+3. The Flask dashboard (`app.py`, deployed to Cloud Run) reads the store and serves the leaderboard and player pages.
 
-Analysis is on-demand, not automatic. The server holds no Anthropic key and never calls Claude.
+Analysis is on-demand, not automatic. The server holds no Anthropic key and never calls Claude. (An optional fully-automated path using an API key also exists — see below.)
 
 ## Local development
 
@@ -25,21 +25,50 @@ python3 app.py        # serves http://localhost:8080
 HALOHEADS_FAKE_EXTRACT=1 python3 scripts/analyze.py
 ```
 
-## Running the analyzer for real
+## Analyzing uploads with Claude Code (primary path — no API key)
 
-Against prod data (reads GCS bucket, writes Firestore):
+When you want the stats updated, tell Claude Code to analyze. It runs:
 
 ```
-gcloud auth application-default login        # GCP creds (read bucket, write Firestore)
-export ANTHROPIC_API_KEY=sk-ant-...          # required for Claude
+# 1. Stage un-analyzed photos locally and print a manifest (key -> local path):
+python3 scripts/stage.py
+
+# 2. Claude Code reads each staged image and writes its readings to a JSON file
+#    mapping the image key -> a carnage-report object:
+#    { "pending/<id>.jpg": { "winning_team": "BLUE", "gametype": "...", "map": null,
+#                            "players": [ { "gamertag", "clan_tag", "team",
+#                                           "score", "kills", "assists", "deaths" }, ... ] } }
+
+# 3. Ingest those readings into the store (validates, dedups, moves photos to analyzed/):
+python3 scripts/ingest.py --reports reports.json
+```
+
+For prod data, point at the cloud backends first:
+
+```
+gcloud auth application-default login   # GCP creds (read bucket, write Firestore)
 export STORAGE_BACKEND=gcs GCS_BUCKET=haloheads-uploads
 export STORE_BACKEND=firestore GCP_PROJECT=<your-project>
-python3 scripts/analyze.py                   # analyze all pending uploads
-python3 scripts/analyze.py --dry-run         # preview extractions, write nothing
-python3 scripts/analyze.py --image shot.jpg  # one local file
+python3 scripts/stage.py                 # downloads pending photos for Claude to read
+# ...Claude reads them, you ingest as above
 ```
 
-Other flags: `--all` (re-analyze already-processed images), `--limit N` (cap the number processed).
+`stage.py` flags: `--all` (re-stage already-analyzed), `--limit N`, `--stage-dir DIR`.
+
+## Optional: fully-automated analyzer (needs an API key)
+
+If you'd rather have analysis run hands-off (e.g. on a schedule) instead of through Claude Code, `scripts/analyze.py` calls the Anthropic API directly:
+
+```
+export ANTHROPIC_API_KEY=sk-ant-...          # only this path needs a key
+export STORAGE_BACKEND=gcs GCS_BUCKET=haloheads-uploads
+export STORE_BACKEND=firestore GCP_PROJECT=<your-project>
+python3 scripts/analyze.py                    # analyze all pending uploads
+python3 scripts/analyze.py --dry-run          # preview, write nothing
+python3 scripts/analyze.py --image shot.jpg   # one local file
+```
+
+In dev you can exercise this path without a key using `HALOHEADS_FAKE_EXTRACT=1 python3 scripts/analyze.py`.
 
 ## Tests
 
@@ -58,9 +87,9 @@ ANTHROPIC_API_KEY=sk-... pytest tests/test_extraction_golden.py -v   # real-Clau
 | `STORE_BACKEND` | `sqlite` | collector, analyzer, dashboard |
 | `SQLITE_PATH` | `./.localdata/stats.db` | collector, analyzer, dashboard (sqlite only) |
 | `GCP_PROJECT` | _(none)_ | collector, analyzer, dashboard (firestore only) |
-| `ANTHROPIC_API_KEY` | _(none)_ | analyzer only |
-| `ANTHROPIC_MODEL` | `claude-opus-4-8` | analyzer only |
-| `HALOHEADS_FAKE_EXTRACT` | _(unset)_ | analyzer (set to `1` to skip Claude in dev) |
+| `ANTHROPIC_API_KEY` | _(none)_ | optional — only the automated `scripts/analyze.py` path; the Claude Code stage/ingest path needs no key |
+| `ANTHROPIC_MODEL` | `claude-opus-4-8` | automated `scripts/analyze.py` only |
+| `HALOHEADS_FAKE_EXTRACT` | _(unset)_ | `scripts/analyze.py` (set to `1` to skip the API in dev) |
 
 ## Deploy (GCP, one-time provisioning by Blake)
 
