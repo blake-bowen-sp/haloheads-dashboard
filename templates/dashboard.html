@@ -348,19 +348,40 @@
     // ── ENTER splash + menu↔battle music — the Enter tap is the gesture that unlocks audio (incl. mobile Safari) ──
     const sndMenu=document.getElementById('snd-menu'), sndBattle=document.getElementById('snd-battle');
     const sndBtn=document.getElementById('snd-toggle'), splashEl=document.getElementById('splash');
-    const SND_VOL=0.42; let sndPlaying=false, sndErr=false, sndMuted=localStorage.getItem('hh-muted')==='1';
+    const SND_VOL=0.42; let sndPlaying=false, sndErr=false, sndMuted=false;
+    let actx=null, menuGain=null, battleGain=null, masterGain=null;   // iOS ignores HTMLMediaElement.volume → the crossfade has to run on Web Audio GainNodes
     function applyMusic(d){                                       // gain = how much of each MESH is revealed (1 − its dissolve) → the tracks OVERLAP; each fades as its mesh dissolves
-      sndMenu.volume   = (1 - d) * SND_VOL;                      // choral = how much of the SNIPER is still revealed (fades out as it dissolves)
-      sndBattle.volume = d * SND_VOL; }                          // battle = how much of the WARTHOG is revealed (rises in, then holds full through the crew)
+      if(!menuGain) return;
+      menuGain.gain.value   = (1 - d) * SND_VOL;                 // choral = how much of the SNIPER is still revealed
+      battleGain.gain.value = d * SND_VOL; }                     // battle = how much of the WARTHOG is revealed (holds full through the crew)
     function paintBtn(){ sndBtn.classList.toggle('muted', sndMuted); sndBtn.setAttribute('aria-pressed', String(!sndMuted)); }
-    function startAudio(){                                        // MUST run inside a user gesture (Enter tap / toggle) → unlocks playback on mobile Safari
-      if(sndPlaying||sndErr) return; sndMenu.muted=sndBattle.muted=sndMuted;
-      Promise.all([sndMenu.play(), sndBattle.play()]).then(()=>{ sndPlaying=true; }).catch(()=>{}); }   // stays retryable if the gesture didn't unlock
+    function setMuted(m){ sndMuted=m; if(masterGain) masterGain.gain.value = m ? 0 : 1; paintBtn(); }
+    function wireAudio(){                                         // build the graph ONCE; must run inside a user gesture on iOS
+      if(actx) return true;
+      const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return false;
+      try{
+        actx = new AC();
+        masterGain = actx.createGain(); masterGain.gain.value = sndMuted?0:1; masterGain.connect(actx.destination);
+        menuGain   = actx.createGain(); menuGain.gain.value   = SND_VOL; menuGain.connect(masterGain);
+        battleGain = actx.createGain(); battleGain.gain.value = 0;       battleGain.connect(masterGain);
+        actx.createMediaElementSource(sndMenu).connect(menuGain);        // reroute both <audio> through the gains (so volume is consistent across browsers, incl. iOS)
+        actx.createMediaElementSource(sndBattle).connect(battleGain);
+        return true;
+      }catch(e){ sndErr=true; return false; }
+    }
+    function startAudio(){                                        // MUST run inside a user gesture (ENTER tap / toggle)
+      if(sndPlaying||sndErr) return;
+      if(!wireAudio()) return;
+      if(actx.state==='suspended') actx.resume();
+      Promise.all([sndMenu.play(), sndBattle.play()]).then(()=>{ sndPlaying=true; }).catch(()=>{}); }
     [sndMenu, sndBattle].forEach(a=>a.addEventListener('error', ()=>{ sndErr=true; sndBtn.hidden=true; }, {once:true}));
-    sndBtn.addEventListener('click', (ev)=>{ ev.stopPropagation();   // header control: 1st click starts (if needed), later clicks mute/unmute
-      if(!sndPlaying){ sndMuted=false; sndMenu.muted=sndBattle.muted=false; startAudio(); }
-      else { sndMuted=!sndMuted; sndMenu.muted=sndBattle.muted=sndMuted; }
-      localStorage.setItem('hh-muted', sndMuted?'1':'0'); paintBtn(); });
+    sndBtn.addEventListener('click', (ev)=>{ ev.stopPropagation();   // header control: 1st click starts (unmuted), later clicks mute/unmute
+      if(!sndPlaying){ setMuted(false); startAudio(); } else setMuted(!sndMuted); });
+    document.addEventListener('visibilitychange', ()=>{          // ONE audio session: pause everything when the tab/phone backgrounds, resume on return (no "double player" in the background)
+      if(!sndPlaying) return;
+      if(document.hidden){ sndMenu.pause(); sndBattle.pause(); if(actx) actx.suspend(); }
+      else { if(actx) actx.resume(); if(!sndMuted){ sndMenu.play().catch(()=>{}); sndBattle.play().catch(()=>{}); } } });
+    window.__hhAudio = ()=>({ menu: menuGain?+menuGain.gain.value.toFixed(3):null, battle: battleGain?+battleGain.gain.value.toFixed(3):null, master: masterGain?+masterGain.gain.value.toFixed(3):null, playing: sndPlaying });
     paintBtn();
 
     // ── splash → site motion-graphics transition (enterT 0→1 is consumed by the render loop) ──
@@ -372,8 +393,8 @@
     const _heroEuler=new THREE.Euler(), _heroQuat=new THREE.Quaternion();
     let enterT=0, entering=false, enterStart=0;
     const easeIO=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
-    function enter(){ if(entering) return; entering=true; enterStart=performance.now();   // the tap: unlock audio in-gesture, reveal the chrome, fly the rifle into place
-      startAudio(); if(!sndErr) sndBtn.hidden=false;
+    function enter(){ if(entering) return; entering=true; enterStart=performance.now();   // the tap: unlock audio in-gesture (always UNMUTED — entering means you want the experience), reveal the chrome, fly the rifle in
+      setMuted(false); startAudio(); if(!sndErr) sndBtn.hidden=false;
       document.body.classList.remove('pre-enter'); splashEl.classList.add('gone'); }
     splashEl.addEventListener('click', enter);
     splashEl.addEventListener('touchend', (ev)=>{ ev.preventDefault(); enter(); }, {passive:false});   // iOS: the touch itself is the audio-unlock gesture

@@ -86,30 +86,34 @@ def test_crossfade_is_locked_to_scroll(live_server, ensure_audio, page):
 
     page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
     page.wait_for_function(
-        f"() => {MENU}.volume > 0.40 && {BATTLE}.volume < 0.02", timeout=10000
+        "() => { const a = window.__hhAudio(); return a.menu > 0.40 && a.battle < 0.02; }", timeout=10000
     )
     page.evaluate("window.scrollTo({top: document.body.scrollHeight, behavior: 'instant'})")
     page.wait_for_function(
-        f"() => {BATTLE}.volume > 0.40 && {MENU}.volume < 0.02", timeout=10000
+        "() => { const a = window.__hhAudio(); return a.battle > 0.40 && a.menu < 0.02; }", timeout=10000
     )
     page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
     page.wait_for_function(
-        f"() => {MENU}.volume > 0.40 && {BATTLE}.volume < 0.02", timeout=10000
+        "() => { const a = window.__hhAudio(); return a.menu > 0.40 && a.battle < 0.02; }", timeout=10000
     )
 
 
 def test_crossfade_overlaps(live_server, ensure_audio, page):
     page.goto(live_server)
     _enter(page)
-    # gains track mesh-reveal, so somewhere mid-transition BOTH tracks are audible at once
-    mx = page.evaluate("document.documentElement.scrollHeight - innerHeight")
-    saw_overlap = False
-    for i in range(41):
-        page.evaluate(f"window.scrollTo({{top: {mx}*{i / 40}, behavior: 'instant'}})")
-        page.wait_for_timeout(60)
-        if page.evaluate(f"{MENU}.volume") > 0.1 and page.evaluate(f"{BATTLE}.volume") > 0.1:
-            saw_overlap = True
-            break
+    # gains track mesh-reveal, so somewhere in the transition BOTH are audible at once.
+    # Sweep fine + JS-side (waiting a frame so the rAF loop updates the gains) so it can't
+    # skip the transition zone.
+    saw_overlap = page.evaluate(
+        "async () => {"
+        " const mx = document.documentElement.scrollHeight - innerHeight;"
+        " const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));"
+        " for (let y = 0; y <= mx; y += 40) {"
+        "   window.scrollTo({top: y, behavior: 'instant'}); await frame();"
+        "   const a = window.__hhAudio();"
+        "   if (a.menu > 0.08 && a.battle > 0.08) return true; }"
+        " return false; }"
+    )
     assert saw_overlap, "tracks never overlap -- the crossfade is not blending"
 
 
@@ -136,21 +140,39 @@ def test_splash_locks_scroll_and_hides_content(live_server, ensure_audio, page):
     )
 
 
-def test_toggle_mutes_after_enter_and_persists(live_server, ensure_audio, page):
+def test_toggle_mutes(live_server, ensure_audio, page):
     page.goto(live_server)
     _enter(page)
-    page.wait_for_function(f"() => !{MENU}.paused", timeout=8000)  # ENTER already started it
+    page.wait_for_function(f"() => !{MENU}.paused", timeout=8000)  # ENTER starts it, UNMUTED
+    assert page.get_attribute("#snd-toggle", "aria-pressed") == "true"
+    assert page.evaluate("window.__hhAudio().master") == 1
 
-    page.click("#snd-toggle")  # now mutes
-    page.wait_for_function(f"() => {MENU}.muted && {BATTLE}.muted", timeout=5000)
-    assert page.evaluate("localStorage.getItem('hh-muted')") == "1"
+    page.click("#snd-toggle")  # mute -> master gain to 0
+    page.wait_for_function("() => window.__hhAudio().master === 0", timeout=5000)
     assert page.get_attribute("#snd-toggle", "aria-pressed") == "false"
 
-    # reload + enter again: the muted choice sticks
+    page.click("#snd-toggle")  # unmute -> master gain back to 1
+    page.wait_for_function("() => window.__hhAudio().master === 1", timeout=5000)
+    assert page.get_attribute("#snd-toggle", "aria-pressed") == "true"
+
+
+def test_background_pauses_both_tracks(live_server, ensure_audio, page):
+    # iOS bug: only one track paused from the lock screen because the two <audio> ran as
+    # separate sessions. Now backgrounding pauses BOTH (one Web Audio graph).
     page.goto(live_server)
     _enter(page)
-    assert page.evaluate(f"{MENU}.muted") is True
-    assert page.get_attribute("#snd-toggle", "aria-pressed") == "false"
+    page.wait_for_function(f"() => !{MENU}.paused && !{BATTLE}.paused", timeout=8000)
+    page.wait_for_timeout(200)  # let playback settle
+    both_paused = page.evaluate(
+        "async () => {"
+        " Object.defineProperty(document, 'hidden', {configurable:true, get:()=>true});"
+        " Object.defineProperty(document, 'visibilityState', {configurable:true, get:()=>'hidden'});"
+        " document.dispatchEvent(new Event('visibilitychange'));"
+        " await new Promise(r => setTimeout(r, 300));"
+        " const m = document.getElementById('snd-menu'), b = document.getElementById('snd-battle');"
+        " return m.paused && b.paused; }"
+    )
+    assert both_paused, "backgrounding did not pause both tracks"
 
 
 def test_enter_recovers_if_first_play_blocked(live_server, ensure_audio, page):
