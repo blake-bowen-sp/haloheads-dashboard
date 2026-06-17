@@ -91,7 +91,7 @@
     .crew{position:relative; z-index:20; min-height:100vh; min-height:100svh; display:flex; flex-direction:column;
       align-items:center; justify-content:flex-start; text-align:center; padding:13svh 18px 14vh}
     .crew-label{font-size:clamp(11px,1.7vw,15px); letter-spacing:.5em; color:var(--acc); text-transform:uppercase}
-    .crew-sub{font-size:clamp(11px,1.3vw,13px); letter-spacing:.22em; color:var(--dim); text-transform:uppercase; margin-top:12px}
+    .crew-sub{font-size:clamp(11px,1.3vw,13px); letter-spacing:.22em; color:var(--acc); text-transform:uppercase; margin-top:12px}
     @media(max-width:600px){ th,td{padding:11px 10px; font-size:14px} }
   </style>
 </head>
@@ -220,8 +220,8 @@
     // THE CREW — crew photo on a big glowing quad (no monitor); the warthog dissolves into it
     const crewImg=new Image();
     crewImg.onload=()=>{ const aspect=crewImg.naturalWidth/crewImg.naturalHeight, vwh=visWH(camera.position.z);
-      const H=Math.min(vwh[1]*0.7, vwh[0]*0.94/aspect), W=H*aspect;   // as big as fits the viewport, at the photo aspect (fills the quad — no bars/crop)
-      const tex=new THREE.Texture(crewImg); tex.colorSpace=THREE.SRGBColorSpace; tex.needsUpdate=true;
+      const H=Math.min(vwh[1]*0.82, vwh[0]*0.97/aspect), W=H*aspect;   // as big as fits the viewport, at the photo aspect (fills the quad — no bars/crop)
+      const tex=new THREE.Texture(crewImg); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=renderer.capabilities.getMaxAnisotropy(); tex.generateMipmaps=true; tex.minFilter=THREE.LinearMipmapLinearFilter; tex.needsUpdate=true;   // full-res, crisp
       const mat=new THREE.MeshStandardMaterial({color:0x000000, emissive:0xffffff, emissiveMap:tex, emissiveIntensity:1.2, roughness:1, metalness:0, envMapIntensity:0, side:THREE.DoubleSide});  // glowing photo; lit material so the dissolve's objectNormal exists
       const quad=new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat);
       computerRig.add(quad); screenU=makeDissolve(quad, computerRig, 1.0, {yMin:-H/2, yInv:1/H}); screenU.uD.value=1;
