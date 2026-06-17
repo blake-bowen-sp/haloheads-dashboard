@@ -24,6 +24,8 @@ def live_server(tmp_path, monkeypatch):
     monkeypatch.setenv("STORE_BACKEND", "sqlite")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "stats.db"))
     monkeypatch.setenv("HALOHEADS_FAKE_EXTRACT", "1")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("HALOHEADS_FAKE_GEMINI", raising=False)
     from app import app as flask_app
     server = make_server("127.0.0.1", 0, flask_app)
     port = server.server_port

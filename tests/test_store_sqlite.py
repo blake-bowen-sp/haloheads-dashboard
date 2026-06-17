@@ -57,7 +57,7 @@ def test_match_keys(sqlite_store):
     sqlite_store.add_match(match, players)
     expected_keys = {
         "match_id", "gametype", "map", "winning_team", "source_image",
-        "uploaded_at", "analyzed_at", "image_hash", "game_hash",
+        "uploaded_at", "analyzed_at", "image_hash", "game_hash", "tabs",
     }
     for row in sqlite_store.all_matches():
         assert set(row.keys()) == expected_keys

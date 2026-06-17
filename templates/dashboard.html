@@ -95,6 +95,20 @@
     .gt-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:20px}
     .gt-h{font-weight:500; letter-spacing:.18em; color:#fff; font-size:12.5px; padding:16px 18px 4px; text-transform:uppercase}
     table.gt{min-width:0}
+    /* matches list + per-match tab pages */
+    .mlist{display:flex; flex-direction:column; gap:10px}
+    .mrow{display:flex; align-items:center; gap:14px; padding:14px 18px; cursor:pointer; border-radius:12px;
+      background:rgba(12,15,19,.5); border:1px solid var(--line); transition:border-color .2s, transform .2s}
+    .mrow:hover{border-color:rgba(51,255,176,.4); transform:translateY(-1px)}
+    .mrow .mg{flex:1; min-width:0}
+    .mrow .mt{font-weight:500; color:#fff; letter-spacing:.04em}
+    .mrow .md{font-size:11px; color:var(--dim); letter-spacing:.14em; text-transform:uppercase; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .mrow .mw{font-size:11px; letter-spacing:.18em; text-transform:uppercase; white-space:nowrap}
+    .tabbar{display:flex; flex-wrap:wrap; gap:8px; padding:14px 16px 4px}
+    .tabbtn{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); cursor:pointer;
+      background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:100px; padding:8px 16px; transition:.2s}
+    .tabbtn.active{color:#06120e; background:var(--acc); border-color:var(--acc)}
+    .team-blue{color:#6db3ff} .team-red{color:#ff7a85} .team-green{color:#5dffa6} .team-gold{color:#ffd66b}
     /* bottom big countdown */
     .bottom{position:relative; z-index:20; min-height:100vh; min-height:100svh; display:flex; flex-direction:column;
       align-items:center; justify-content:flex-start; text-align:center; padding:15svh 18px 14vh}
@@ -109,12 +123,25 @@
     .crew-label{font-size:clamp(11px,1.7vw,15px); letter-spacing:.5em; color:var(--acc); text-transform:uppercase}
     .crew-sub{font-size:clamp(11px,1.3vw,13px); letter-spacing:.22em; color:var(--acc); text-transform:uppercase; margin-top:12px}
     @media(max-width:600px){ th,td{padding:11px 10px; font-size:14px} }
+    /* ── ENTER splash — the tap is the gesture that unlocks audio (incl. mobile) ── */
+    #splash{position:fixed; inset:0; z-index:120; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+      padding:0 22px 14vh; text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent;
+      background:radial-gradient(125% 95% at 50% 44%, transparent 30%, rgba(6,7,9,.66) 68%, rgba(6,7,9,.97) 100%);
+      transition:opacity 1.4s ease, transform 2.6s cubic-bezier(.2,.7,.2,1); will-change:opacity, transform}
+    #splash.gone{opacity:0; transform:scale(1.18); pointer-events:none}
+    .enter-word{font-weight:200; letter-spacing:.6em; text-indent:.6em; font-size:clamp(38px,8.5vw,98px); color:#fff;
+      animation:enterPulse 2.6s ease-in-out infinite}
+    @keyframes enterPulse{0%,100%{opacity:.84; text-shadow:0 0 38px rgba(51,255,176,.26)} 50%{opacity:1; text-shadow:0 0 70px rgba(51,255,176,.55)}}
+    html:has(body.pre-enter), body.pre-enter{overflow:hidden}     /* lock BOTH the viewport and the body so nothing can scroll behind the splash */
+    header,.hero,main,.bottom,.crew{transition:opacity 1.4s ease .5s}
+    body.pre-enter header, body.pre-enter .hero, body.pre-enter main, body.pre-enter .bottom, body.pre-enter .crew{opacity:0; pointer-events:none}   /* hide ALL dashboard content during the splash — no data bleeds through the void */
   </style>
 </head>
-<body>
+<body class="pre-enter">
   <div id="loader"><div class="ld-ring"></div></div>
   <canvas id="scene"></canvas>
   <div class="veil"></div>
+  <div id="splash"><div class="enter-word">ENTER</div></div>
 
   <header>
     <div class="mark">HALO<i>HEADS</i></div>
@@ -128,7 +155,7 @@
         </svg>
       </button>
       <label class="up" for="up-input">Upload</label>
-      <input id="up-input" type="file" accept="image/*" multiple hidden>
+      <input id="up-input" type="file" accept="image/*,video/*" multiple hidden>
     </div>
   </header>
 
@@ -145,6 +172,11 @@
       <tbody></tbody></table></div></div>
     <div class="sec"><h2>By Gametype</h2><span>Per-mode performance</span></div>
     <div id="gametypes"></div>
+    <div class="sec"><h2>Career — By Tab</h2><span>Extra report tabs, averaged across games</span></div>
+    <div id="tab-career"></div>
+    <div class="sec"><h2>Matches</h2><span>Tap a game to flip through its tabs</span></div>
+    <div id="matches"></div>
+    <div id="match-detail"></div>
   </main>
 
   <section class="bottom">
@@ -214,8 +246,23 @@
     const loaderEl=document.getElementById('loader'); let revealed=false;
     function reveal(){ if(revealed) return; revealed=true; loaderEl.classList.add('hidden'); setTimeout(()=>{ loaderEl.style.display='none'; }, 650); }
     const manager=new THREE.LoadingManager();
-    manager.onLoad=()=>{ (renderer.compileAsync?renderer.compileAsync(scene,camera):Promise.resolve()).then(reveal,reveal); };   // precompile shaders, then reveal
-    setTimeout(reveal, 9000);   // fallback if a load hangs
+    manager.onLoad=()=>{                                          // hold the loader until EVERYTHING is warm: models, shaders, GEOMETRY uploaded, audio buffered → ENTER has zero GPU work, no hitch
+      [rifleRig,warthogRig,computerRig,brLeftRig,brRightRig].forEach(r=>{ r.visible=true; });
+      const savedUD = dissolveList.map(({u})=>u.uD.value);
+      dissolveList.forEach(({u})=>{ u.uD.value=0; });            // un-dissolve so every mesh actually rasterizes during warm-up
+      const compiled = renderer.compileAsync ? renderer.compileAsync(scene,camera) : Promise.resolve();
+      const a1=document.getElementById('snd-menu'), a2=document.getElementById('snd-battle');
+      const buffered = Promise.race([
+        Promise.all([a1,a2].map(a=> a.readyState>=4 ? Promise.resolve()
+          : new Promise(res=>{ a.addEventListener('canplaythrough', res, {once:true}); a.addEventListener('error', res, {once:true}); }))),
+        new Promise(res=>setTimeout(res, 3500))                   // mobile/iOS defers audio until a gesture → cap the wait so the splash always appears
+      ]);
+      Promise.all([compiled, buffered]).then(()=>{
+        for(let i=0;i<3;i++) composer.render();                  // actually UPLOAD all geometry/textures (incl. the 20MB BR55s that pop in on ENTER) + warm the bloom pipeline, behind the loader
+        dissolveList.forEach(({u},i)=>{ u.uD.value=savedUD[i]; });  // restore — the loop drives the splash state from here
+      }).then(reveal, reveal);
+    };
+    setTimeout(reveal, 12000);   // ultimate fallback if a load hangs
     function opaqueFix(root){ root.traverse(m=>{ if(m.isMesh){ (Array.isArray(m.material)?m.material:[m.material]).forEach(mat=>{   // GLBs flag everything transparent → make the opaque parts opaque+depth-writing so the warthog body stops rendering over its tyres
       if(mat.transparent && mat.opacity>=0.99){ mat.transparent=false; mat.depthWrite=true; mat.needsUpdate=true; } }); } }); }
 
@@ -298,28 +345,44 @@
     function recalc(){ docH=Math.max(1, document.documentElement.scrollHeight - innerHeight); bottomTop=bottomEl.offsetTop; crewTop=crewEl.offsetTop; }
     recalc();
 
-    // ── menu↔battle music: equal-power crossfade locked to the sniper→warthog dissolve `d` ──
+    // ── ENTER splash + menu↔battle music — the Enter tap is the gesture that unlocks audio (incl. mobile Safari) ──
     const sndMenu=document.getElementById('snd-menu'), sndBattle=document.getElementById('snd-battle');
-    const sndBtn=document.getElementById('snd-toggle'); const SND_VOL=0.42;
-    let sndReady=false, sndStarted=false, sndMuted=localStorage.getItem('hh-muted')==='1', sndOk=0;
-    function applyMusic(d){ if(!sndReady) return;                 // SAME d that drives the visual dissolve → audio & pixels move together
-      sndMenu.volume   = Math.cos(d*Math.PI/2)*SND_VOL;          // choral: full on the sniper (d=0), gone by the warthog (d=1)
-      sndBattle.volume = Math.sin(d*Math.PI/2)*SND_VOL; }        // battle riff: in with the warthog, holds full through the crew (d stays 1)
+    const sndBtn=document.getElementById('snd-toggle'), splashEl=document.getElementById('splash');
+    const SND_VOL=0.42; let sndPlaying=false, sndErr=false, sndMuted=localStorage.getItem('hh-muted')==='1';
+    function applyMusic(d){                                       // gain = how much of each MESH is revealed (1 − its dissolve) → the tracks OVERLAP; each fades as its mesh dissolves
+      sndMenu.volume   = (1 - d) * SND_VOL;                      // choral = how much of the SNIPER is still revealed (fades out as it dissolves)
+      sndBattle.volume = d * SND_VOL; }                          // battle = how much of the WARTHOG is revealed (rises in, then holds full through the crew)
     function paintBtn(){ sndBtn.classList.toggle('muted', sndMuted); sndBtn.setAttribute('aria-pressed', String(!sndMuted)); }
-    function startMusic(){ if(sndStarted||!sndReady) return; sndStarted=true; sndMenu.play().catch(()=>{}); sndBattle.play().catch(()=>{}); }
-    function enableMusic(){ if(sndReady) return; sndReady=true;   // both tracks decoded → reveal the control + arm the start triggers
-      sndMenu.muted=sndBattle.muted=sndMuted; sndBtn.hidden=false; paintBtn();
-      ['scroll','wheel','pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev, startMusic, {once:true, passive:true}));   // first gesture unlocks audio (a desktop wheel-scroll alone can't, so back it with pointer/key)
-      sndBtn.addEventListener('click', ()=>{ sndMuted=!sndMuted; localStorage.setItem('hh-muted', sndMuted?'1':'0');
-        sndMenu.muted=sndBattle.muted=sndMuted; paintBtn(); if(!sndMuted) startMusic(); }); }
-    [sndMenu, sndBattle].forEach(a=>{                             // only light up once BOTH files actually decode (missing → control stays hidden, page unaffected)
-      if(a.readyState>=3){ if(++sndOk===2) enableMusic(); }
-      else a.addEventListener('canplay', ()=>{ if(++sndOk===2) enableMusic(); }, {once:true});
-      a.addEventListener('error', ()=>{ sndBtn.hidden=true; }, {once:true}); });
+    function startAudio(){                                        // MUST run inside a user gesture (Enter tap / toggle) → unlocks playback on mobile Safari
+      if(sndPlaying||sndErr) return; sndMenu.muted=sndBattle.muted=sndMuted;
+      Promise.all([sndMenu.play(), sndBattle.play()]).then(()=>{ sndPlaying=true; }).catch(()=>{}); }   // stays retryable if the gesture didn't unlock
+    [sndMenu, sndBattle].forEach(a=>a.addEventListener('error', ()=>{ sndErr=true; sndBtn.hidden=true; }, {once:true}));
+    sndBtn.addEventListener('click', (ev)=>{ ev.stopPropagation();   // header control: 1st click starts (if needed), later clicks mute/unmute
+      if(!sndPlaying){ sndMuted=false; sndMenu.muted=sndBattle.muted=false; startAudio(); }
+      else { sndMuted=!sndMuted; sndMenu.muted=sndBattle.muted=sndMuted; }
+      localStorage.setItem('hh-muted', sndMuted?'1':'0'); paintBtn(); });
+    paintBtn();
+
+    // ── splash → site motion-graphics transition (enterT 0→1 is consumed by the render loop) ──
+    // splash pose = broadside orientation, then rolled 90° about the VIEW axis so the barrel points UP
+    const _qBroad=new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI/2, Math.PI/2));
+    const _qRoll=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), Math.PI/2);   // barrel points UP
+    const _qYaw =new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2);   // +90° about the up-down axis
+    const splashQuat=new THREE.Quaternion().multiplyQuaternions(_qYaw, _qRoll).multiply(_qBroad);
+    const _heroEuler=new THREE.Euler(), _heroQuat=new THREE.Quaternion();
+    let enterT=0, entering=false, enterStart=0;
+    const easeIO=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+    function enter(){ if(entering) return; entering=true; enterStart=performance.now();   // the tap: unlock audio in-gesture, reveal the chrome, fly the rifle into place
+      startAudio(); if(!sndErr) sndBtn.hidden=false;
+      document.body.classList.remove('pre-enter'); splashEl.classList.add('gone'); }
+    splashEl.addEventListener('click', enter);
+    splashEl.addEventListener('touchend', (ev)=>{ ev.preventDefault(); enter(); }, {passive:false});   // iOS: the touch itself is the audio-unlock gesture
 
     (function loop(){
       requestAnimationFrame(loop);
       const p = Math.min(1, scrollY/docH);               // scroll-LOCKED, no smoothing/spring
+      if(entering && enterT<1) enterT=Math.min(1, (performance.now()-enterStart)/2600);   // ENTER transition (~2.6s wall-clock, so 60/120Hz match): rifle flies from the vertical splash pose into the hero pose
+      const e = easeIO(enterT);
       dustT += 0.016;                                    // green dust: slight curl-noise swirl + scroll parallax
       for(let i=0;i<N;i++){ const x=dustBase[i*3], y=dustBase[i*3+1], z=dustBase[i*3+2];
         dustPos[i*3]   = x + (Math.sin(y*0.5+dustT*0.3)+Math.cos(z*0.4-dustT*0.2))*0.26;
@@ -328,7 +391,9 @@
       dg.attributes.position.needsUpdate=true; dust.position.y = -p*1.8;
       const ry = p*Math.PI*2.4;                          // tight rotation only — no auto-spin
       const dBR = clamp(p/0.13);                          // battle rifles dissolve OUT early — gone before the sniper rotates sideways
-      rifleRig.rotation.set(0.05, ry, 0);                // sniper rotates; monitor stays STATIC
+      _heroEuler.set(0.05, ry, 0); _heroQuat.setFromEuler(_heroEuler);
+      rifleRig.quaternion.slerpQuaternions(splashQuat, _heroQuat, e);   // splash pose (e=0) → normal hero spin (e=1)
+      rifleRig.position.x = -0.11*e;                     // centred on the splash, settles to its scope-centred offset on enter
       warthogRig.rotation.y = ry;
       brLeftRig.rotation.y  = -Math.PI/2 + dBR*Math.PI*1.6;  // BRs spin OPPOSITE directions as they dissolve out
       brRightRig.rotation.y =  Math.PI/2 - dBR*Math.PI*1.6;
@@ -337,15 +402,15 @@
       const rTop = bottomTop - scrollY, cTop = crewTop - scrollY;
       const d  = clamp(((innerHeight - rTop)/innerHeight - 0.5)/0.44);        // sniper→warthog: once the countdown card clears (as before)
       const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);        // warthog→crew monitor (THE CREW) — good, keep
-      applyMusic(d);                                                         // crossfade menu↔battle on the SAME signal as the rifle→warthog dissolve
+      applyMusic(d);                                                         // gain tracks the sniper & warthog mesh reveal → overlapping crossfade
       if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT (centred, on the H)
-      if(brLeftU) brLeftU.uD.value = dBR;                // battle rifles dissolve OUT (no rotation)
-      if(brRightU) brRightU.uD.value = dBR;
+      if(brLeftU) brLeftU.uD.value = Math.max(dBR, 1-e);                // BRs: hidden on the splash, assemble in as you enter, then dissolve OUT on scroll
+      if(brRightU) brRightU.uD.value = Math.max(dBR, 1-e);
       if(warthogU) warthogU.uD.value = Math.max(1.0 - d, d2);  // warthog IN with d, then OUT with d2
       if(computerU) computerU.uD.value = 1.0 - d2;       // crew monitor dissolves IN
       if(screenU) screenU.uD.value = 1.0 - d2;           // ...incl. the crew-photo screen plane
       rifleRig.visible = d < 0.999;
-      brLeftRig.visible = brRightRig.visible = dBR < 0.999;
+      brLeftRig.visible = brRightRig.visible = Math.max(dBR, 1-e) < 0.999;
       warthogRig.visible = d > 0.001 && d2 < 0.999;      // skip geometry once fully dissolved
       computerRig.visible = d2 > 0.001;
       composer.render();
@@ -385,7 +450,83 @@
         recalc();
       });
     }
-    refreshStats();
+
+    // ── per-tab rendering (career + per-match) ──
+    const teamClass=(t)=>{ t=(t||'').toLowerCase(); return ['blue','red','green','gold'].includes(t)?(' team-'+t):''; };
+    const fmtVal=(v)=>(v===null||v===undefined||v==='')?'—':v;
+    function tabTable(columns, players){
+      const sc=document.createElement('div'); sc.className='scroller';
+      const table=document.createElement('table');
+      table.innerHTML='<thead><tr><th>Username</th>'+columns.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead>';
+      const tb=document.createElement('tbody');
+      players.forEach(p=>{ const tr=document.createElement('tr');
+        tr.appendChild(cell(p.gamertag,'name'+teamClass(p.team)));
+        columns.forEach(c=>tr.appendChild(cell(fmtVal((p.stats||{})[c]))));
+        tb.appendChild(tr); });
+      table.appendChild(tb); sc.appendChild(table); return sc;
+    }
+
+    function refreshTabCareer(){
+      fetch('/api/tab-career').then(r=>r.json()).then(d=>{
+        const wrap=document.getElementById('tab-career'); wrap.innerHTML='';
+        const names=Object.keys(d);
+        if(!names.length){ wrap.innerHTML='<div class="panel in"><div class="empty">No extra tabs yet — upload a tab video</div></div>'; recalc(); return; }
+        names.forEach(name=>{ const panel=document.createElement('div'); panel.className='panel in';
+          const h=document.createElement('div'); h.className='gt-h'; h.textContent=name; panel.appendChild(h);
+          const cols=d[name].columns||[];
+          const sc=document.createElement('div'); sc.className='scroller';
+          const table=document.createElement('table');
+          table.innerHTML='<thead><tr><th>Username</th>'+cols.map(c=>'<th>'+c+'</th>').join('')+'<th>Games</th></tr></thead>';
+          const tb=document.createElement('tbody');
+          (d[name].rows||[]).forEach(p=>{ const tr=document.createElement('tr');
+            tr.appendChild(cell(p.gamertag,'name'+teamClass(p.team)));
+            cols.forEach(c=>tr.appendChild(cell(fmtVal((p.stats||{})[c]))));
+            tr.appendChild(cell(p.games,'rank')); tb.appendChild(tr); });
+          table.appendChild(tb); sc.appendChild(table); panel.appendChild(sc); wrap.appendChild(panel); });
+        recalc();
+      });
+    }
+
+    const matchCache={};
+    function showMatch(mid){
+      const m=matchCache[mid]; if(!m) return;
+      const detail=document.getElementById('match-detail'); detail.innerHTML='';
+      const panel=document.createElement('div'); panel.className='panel in';
+      const bar=document.createElement('div'); bar.className='tabbar';
+      const content=document.createElement('div');
+      const tabs=m.tabs||[];
+      tabs.forEach((t,i)=>{ const b=document.createElement('div'); b.className='tabbtn'+(i===0?' active':''); b.textContent=t.name||('TAB '+(i+1));
+        b.onclick=()=>{ [...bar.children].forEach(c=>c.classList.remove('active')); b.classList.add('active');
+          content.innerHTML=''; content.appendChild(tabTable(t.columns||[], t.players||[])); recalc(); };
+        bar.appendChild(b); });
+      panel.appendChild(bar); panel.appendChild(content); detail.appendChild(panel);
+      if(tabs.length) content.appendChild(tabTable(tabs[0].columns||[], tabs[0].players||[]));
+      detail.scrollIntoView({behavior:'smooth', block:'start'}); recalc();
+    }
+
+    function refreshMatches(){
+      fetch('/api/matches').then(r=>r.json()).then(d=>{
+        const wrap=document.getElementById('matches'); wrap.innerHTML='';
+        if(!d.length){ wrap.innerHTML='<div class="panel in"><div class="empty">No matches yet</div></div>'; recalc(); return; }
+        const list=document.createElement('div'); list.className='mlist';
+        d.forEach(m=>{ const row=document.createElement('div'); row.className='mrow';
+          const g=document.createElement('div'); g.className='mg';
+          const t=document.createElement('div'); t.className='mt'; t.textContent=m.gametype||'MATCH';
+          const sub=document.createElement('div'); sub.className='md';
+          sub.textContent=(m.tab_names||[]).filter(Boolean).join(' · ')+(m.players?(' — '+m.players+'P'):'');
+          g.appendChild(t); g.appendChild(sub);
+          const w=document.createElement('div'); w.className='mw'+teamClass(m.winning_team);
+          w.textContent=m.winning_team?(m.winning_team+' WON'):'';
+          row.appendChild(g); row.appendChild(w);
+          row.onclick=()=>{ if(matchCache[m.match_id]) return showMatch(m.match_id);
+            fetch('/api/match/'+m.match_id).then(r=>r.json()).then(md=>{ matchCache[m.match_id]=md; showMatch(m.match_id); }); };
+          list.appendChild(row); });
+        wrap.appendChild(list); recalc();
+      });
+    }
+
+    function refreshAll(){ refreshStats(); refreshTabCareer(); refreshMatches(); }
+    refreshAll();
 
     // upload: top-right button → native multi-file picker → POST each shot to /upload → refresh (no separate upload page)
     const upInput=document.getElementById('up-input'), upLabel=document.querySelector('label.up');
@@ -395,7 +536,7 @@
       for(let i=0;i<files.length;i++){ upLabel.textContent=`Uploading ${i+1}/${files.length}…`;
         const fd=new FormData(); fd.append('image', files[i]);
         try{ const r=await fetch('/upload',{method:'POST',body:fd}); if(r.ok) ok++; }catch(e){} }
-      upInput.value=''; upLabel.textContent = ok ? `Uploaded ${ok}` : 'Upload failed'; refreshStats();
+      upInput.value=''; upLabel.textContent = ok ? `Uploaded ${ok}` : 'Upload failed'; refreshAll();
       setTimeout(()=>{ upLabel.textContent=orig; }, 2800);
     });
 

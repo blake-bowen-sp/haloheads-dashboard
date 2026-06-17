@@ -12,6 +12,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "bucket"))
     monkeypatch.setenv("STORE_BACKEND", "sqlite")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "stats.db"))
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("HALOHEADS_FAKE_GEMINI", raising=False)
     flask_app.config["TESTING"] = True
     return flask_app.test_client()
 

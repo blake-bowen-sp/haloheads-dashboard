@@ -1,0 +1,24 @@
+# Upload control for `gcloud run deploy --source .`
+#
+# IMPORTANT: without this file, gcloud derives its upload excludes from .gitignore —
+# which lists `static/audio/*.mp3`, so the menu/battle tracks would be stripped and the
+# app would ship WITHOUT music. This file overrides that: everything the container needs
+# (including the sliced menu.mp3 / battle.mp3) uploads; only junk is excluded.
+
+.git/
+.gitignore
+.gcloudignore
+.localdata/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+node_modules/
+.env
+.DS_Store
+gameStatsImageFiles/
+tests/
+docs/
+
+# the full purchased track (~9 MB) — the sliced menu.mp3/battle.mp3 ship; the raw source does not
+static/audio/*Mjolnir*

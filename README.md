@@ -10,6 +10,33 @@ Haloheads is a stats-tracking system for a private Halo game group. Players uplo
 
 Analysis is on-demand, not automatic. The server holds no Anthropic key and never calls Claude. (An optional fully-automated path using an API key also exists — see below.)
 
+## Inline Gemini analysis + video tab capture (deployed path)
+
+When `GEMINI_API_KEY` is set, the web app analyzes each upload **inline** at
+`POST /upload` with Gemini (`gemini-3.5-flash`, override via `GEMINI_MODEL`) — no
+separate analyzer step. The Upload button accepts **images or video**
+(`accept="image/*,video/*"`; on iOS this offers *Take Photo/Video / Library /
+Files*).
+
+Halo's post-game carnage report is a multi-tab carousel (OVERVIEW, DETAILED STATS,
+MEDALS…). Record a ~2-second clip flipping through the tabs and upload it: Gemini
+reads **every tab** into a generic `{name, columns, players:[{gamertag, stats}]}`
+structure (via the Files API, sampled at 5 fps, high media resolution). **One
+video = one match = N tabs.** The OVERVIEW tab feeds the existing leaderboard /
+MVPs / dedup unchanged; the extra tabs power two new dashboard areas:
+
+- **Career — By Tab** (`GET /api/tab-career`): each extra tab's stats averaged per
+  player across all games (times like `M:SS` averaged in seconds).
+- **Matches** (`GET /api/matches`, `GET /api/match/<id>`): tap a game to flip
+  through its tabs as pages mirroring the in-game report.
+
+A single photo is just the one-tab case (its OVERVIEW). The Gemini path uses only
+`requests` (already a server dependency); it never imports the Anthropic SDK.
+
+Set `HALOHEADS_FAKE_GEMINI=1` to short-circuit the inline path to a deterministic
+fake multi-tab report (used by the E2E test; no key needed). Keep clips short —
+Cloud Run caps request bodies at ~32 MB.
+
 ## Local development
 
 No cloud account or API key needed — runs on local filesystem and SQLite by default.
@@ -73,8 +100,12 @@ In dev you can exercise this path without a key using `HALOHEADS_FAKE_EXTRACT=1 
 ## Tests
 
 ```
-pytest -q                       # unit + integration + e2e (golden test skips without a key)
+pytest -q                       # unit + integration + e2e (golden tests skip without a key)
 ANTHROPIC_API_KEY=sk-... pytest tests/test_extraction_golden.py -v   # real-Claude golden test
+GEMINI_API_KEY=AIza... pytest tests/test_video_golden.py -v          # real-Gemini video tab extraction
+
+# regenerate the synthetic multi-tab test videos (committed under tests/fixtures/):
+python3 tests/fixtures/make_test_video.py
 ```
 
 ## Env vars
@@ -87,6 +118,9 @@ ANTHROPIC_API_KEY=sk-... pytest tests/test_extraction_golden.py -v   # real-Clau
 | `STORE_BACKEND` | `sqlite` | collector, analyzer, dashboard |
 | `SQLITE_PATH` | `./.localdata/stats.db` | collector, analyzer, dashboard (sqlite only) |
 | `GCP_PROJECT` | _(none)_ | collector, analyzer, dashboard (firestore only) |
+| `GEMINI_API_KEY` | _(none)_ | enables inline analysis in the web app (images + tab videos); the deployed path |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Gemini model for inline analysis (images + video) |
+| `HALOHEADS_FAKE_GEMINI` | _(unset)_ | set to `1` to fake the inline multi-tab path (E2E/tests, no key) |
 | `ANTHROPIC_API_KEY` | _(none)_ | optional — only the automated `scripts/analyze.py` path; the Claude Code stage/ingest path needs no key |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | automated `scripts/analyze.py` only |
 | `HALOHEADS_FAKE_EXTRACT` | _(unset)_ | `scripts/analyze.py` (set to `1` to skip the API in dev) |
@@ -96,16 +130,27 @@ ANTHROPIC_API_KEY=sk-... pytest tests/test_extraction_golden.py -v   # real-Clau
 1. Pick or create a GCP project; enable Firestore (Native mode) and Cloud Storage. Vertex AI is NOT used.
 2. Create the bucket:
    ```
-   gcloud storage buckets create gs://haloheads-uploads
+   gcloud storage buckets create gs://haloheads-dashboard-uploads
    ```
 3. Grant the Cloud Run service account two roles: **Firestore User**, **Storage Object Admin**.
-4. Deploy:
+4. Store the Gemini key in Secret Manager (enables inline image + video analysis):
    ```
-   gcloud run deploy haloheads --source . \
-     --set-env-vars STORAGE_BACKEND=gcs,GCS_BUCKET=haloheads-uploads,STORE_BACKEND=firestore,GCP_PROJECT=<project>
+   printf '%s' "$GEMINI_API_KEY" | gcloud secrets create gemini-api-key --data-file=- --project haloheads-dashboard
+   ```
+5. Deploy (the live service is `haloheads-dashboard` in `us-central1`; a source deploy
+   preserves existing env vars + the `gemini-api-key` secret):
+   ```
+   gcloud run deploy haloheads-dashboard --source . --region us-central1 --project haloheads-dashboard
+   ```
+   First-time only, set the config:
+   ```
+   gcloud run deploy haloheads-dashboard --source . --region us-central1 \
+     --set-env-vars STORAGE_BACKEND=gcs,GCS_BUCKET=haloheads-dashboard-uploads,STORE_BACKEND=firestore,GCP_PROJECT=haloheads-dashboard \
+     --update-secrets GEMINI_API_KEY=gemini-api-key:latest
    ```
 
-The server holds no Anthropic key — only the local analyzer calls Claude.
+The server calls **Gemini** for inline analysis (key from Secret Manager); it holds no
+Anthropic key — only the optional local `scripts/analyze.py` analyzer calls Claude.
 
 ## Design docs
 
