@@ -188,20 +188,20 @@
     const dust=new THREE.Points(dg, new THREE.PointsMaterial({color:0x33ffb0,size:0.013,transparent:true,opacity:0.3,depthWrite:false}));
     scene.add(dust); let dustT=0;
 
-    const SCALE = 24.8;   // shared voxel scale (2× res) → identical voxel size on rifle + warthog
+    const SCALE = 99.2;   // shared voxel scale (4× res) → identical voxel size on rifle + warthog
     const dissolveList = [];
     // green cyber-voxel dissolve sampled in rig-local space (world-unit, rotation-stable) so every mesh shares one noise scale
     function makeDissolve(root, rigRef, flipH, ph){
-      const u = { uD:{value:0}, uEdge:{value:0.05}, uScale:{value:SCALE}, uEC:{value:new THREE.Color(0x2bff9e)}, uRigInv:{value:new THREE.Matrix4()}, uYMin:{value:ph.yMin}, uYInv:{value:ph.yInv}, uFlipH:{value:flipH} };
+      const u = { uD:{value:0}, uEdge:{value:0.05}, uScale:{value:SCALE}, uEC:{value:new THREE.Color(0x2bff9e)}, uRigInv:{value:new THREE.Matrix4()}, uYMin:{value:ph.yMin}, uYInv:{value:ph.yInv}, uFlipH:{value:flipH}, uT:{value:0}, uSpring:{value:0.035}, uSize:{value:ph.size} };
       root.traverse(o=>{ if(o.isMesh){ (Array.isArray(o.material)?o.material:[o.material]).forEach(mat=>{
         mat.onBeforeCompile=(sh)=>{
-          sh.uniforms.uD=u.uD; sh.uniforms.uEdge=u.uEdge; sh.uniforms.uScale=u.uScale; sh.uniforms.uEC=u.uEC; sh.uniforms.uRigInv=u.uRigInv; sh.uniforms.uYMin=u.uYMin; sh.uniforms.uYInv=u.uYInv; sh.uniforms.uFlipH=u.uFlipH;
+          sh.uniforms.uD=u.uD; sh.uniforms.uEdge=u.uEdge; sh.uniforms.uScale=u.uScale; sh.uniforms.uEC=u.uEC; sh.uniforms.uRigInv=u.uRigInv; sh.uniforms.uYMin=u.uYMin; sh.uniforms.uYInv=u.uYInv; sh.uniforms.uFlipH=u.uFlipH; sh.uniforms.uT=u.uT; sh.uniforms.uSpring=u.uSpring; sh.uniforms.uSize=u.uSize;
           sh.vertexShader = sh.vertexShader
-            .replace('#include <common>','#include <common>\nvarying vec3 vDP;\nuniform mat4 uRigInv;')
-            .replace('#include <begin_vertex>','#include <begin_vertex>\nvDP = (uRigInv * modelMatrix * vec4(position,1.0)).xyz;');
+            .replace('#include <common>','#include <common>\nvarying vec3 vDP;\nuniform mat4 uRigInv;uniform float uScale;uniform float uD;uniform float uEdge;uniform float uYMin;uniform float uYInv;uniform float uFlipH;uniform float uT;uniform float uSpring;uniform float uSize;\nfloat dh(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}')
+            .replace('#include <begin_vertex>','#include <begin_vertex>\nvDP = (uRigInv * modelMatrix * vec4(position,1.0)).xyz;\n{float dn=dh(floor(vDP*uScale));float dhgt=clamp((vDP.y-uYMin)*uYInv,0.0,1.0);float dv=abs(uFlipH-dhgt)*0.75+dn*0.25;float dedge=smoothstep(uEdge*4.0,0.0,dv-uD)*step(uD,dv)*smoothstep(0.0,0.02,uD);float dspr=sin(uT*9.0+dn*6.2831)*0.6+sin(uT*5.0+dn*12.566)*0.4;vec3 cdir=normalize(vec3(sin(vDP.y*2.5+dn*7.0),cos(vDP.x*2.5-dn*5.0),sin(vDP.z*2.5+dn*9.0))+1e-4);transformed+=(cdir*dspr*0.7+objectNormal*(0.5+0.5*dspr))*(uSpring*uSize*dedge);}');
           sh.fragmentShader = sh.fragmentShader
             .replace('#include <common>','#include <common>\nvarying vec3 vDP;uniform float uD;uniform float uEdge;uniform float uScale;uniform vec3 uEC;uniform float uYMin;uniform float uYInv;uniform float uFlipH;\nfloat dh(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}')
-            .replace('#include <dithering_fragment>','#include <dithering_fragment>\n{float n=dh(floor(vDP*uScale));float h=clamp((vDP.y-uYMin)*uYInv,0.0,1.0);float v=abs(uFlipH-h)*0.75+n*0.25;if(v<uD)discard;float e=(1.0-clamp((v-uD)/uEdge,0.0,1.0))*smoothstep(0.0,0.02,uD);gl_FragColor.rgb+=uEC*e*3.4;}');
+            .replace('#include <dithering_fragment>','#include <dithering_fragment>\n{float n=dh(floor(vDP*uScale));float h=clamp((vDP.y-uYMin)*uYInv,0.0,1.0);float v=abs(uFlipH-h)*0.75+n*0.25;if(v<uD)discard;float e=(1.0-clamp((v-uD)/uEdge,0.0,1.0))*smoothstep(0.0,0.02,uD);float cn=fract(n*43.0+0.5);vec3 tint=uEC+vec3(-0.18,0.05,0.28)*(cn-0.5);gl_FragColor.rgb+=tint*e*3.4*(0.82+0.36*cn);}');
         };
         mat.needsUpdate=true;
       }); }});
@@ -209,28 +209,38 @@
       return u;
     }
 
-    let rifleU=null, warthogU=null, computerU=null;
+    let rifleU=null, warthogU=null, computerU=null, screenU=null;
     function place(o, target){ const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
       const sc=target/Math.max(s.x,s.y,s.z); o.scale.setScalar(sc); o.position.set(-c.x*sc,-c.y*sc,-c.z*sc);
-      return { yMin:-s.y*sc/2, yInv:1/Math.max(1e-6,s.y*sc) }; }   // rig-local vertical extent for bottom→top dissolve
+      return { yMin:-s.y*sc/2, yInv:1/Math.max(1e-6,s.y*sc), size:s.y }; }   // rig-local vertical extent + native size (spring amp)
 
     const portrait = innerWidth/innerHeight < 1;
     new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; const ph=place(o, 5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig, 0.0, ph); }, undefined, ()=>{});   // OUT bottom→top
     new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; const ph=place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig, 1.0, ph); warthogU.uD.value=1; }, undefined, ()=>{});   // IN bottom→top
-    new GLTFLoader().load('/static/models/computer.glb', (g)=>{   // sci-fi monitor; crew photo glows on the screen
-      const o=g.scene;
-      o.traverse(m=>{ if(m.isMesh && m.name==='Plane001_digital_displays_0'){ m.material=m.material.clone(); m.__screen=true; } });  // own material for the screen
+    new GLTFLoader().load('/static/models/computer.glb', (g)=>{   // sci-fi monitor; crew photo on our OWN clean screen plane
+      const o=g.scene; let screenMesh=null;
+      o.traverse(m=>{ if(m.isMesh && m.name==='Plane001_digital_displays_0'){ screenMesh=m; m.visible=false; } });  // model screen UVs unusable → hide it, draw our own
       const ph=place(o, portrait?5.6:6.8); computerRig.add(o); computerU=makeDissolve(o, computerRig, 1.0, ph); computerU.uD.value=1;   // IN bottom→top
-      const img=new Image();   // crew photo → FIT (no stretch/crop) on a black screen of the panel's aspect (~1.90:1)
-      img.onload=()=>{ const cw=2048, ch=Math.round(cw*2.43/4.61);
-        const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
-        const cx=cv.getContext('2d'); cx.fillStyle='#000'; cx.fillRect(0,0,cw,ch);
-        const s=Math.min(cw/img.naturalWidth, ch/img.naturalHeight), dw=img.naturalWidth*s, dh=img.naturalHeight*s;
-        cx.drawImage(img,(cw-dw)/2,(ch-dh)/2,dw,dh);   // contained + centred, black bars around
-        const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.flipY=false;
-        o.traverse(m=>{ if(m.__screen){ m.material.map=tex; m.material.emissiveMap=tex; m.material.emissive.set(0xffffff); m.material.emissiveIntensity=1.2; m.material.needsUpdate=true; } });
-      };
-      img.onerror=()=>{}; img.src='/static/img/crew.jpg';
+      if(screenMesh){
+        computerRig.updateMatrixWorld(true);
+        const wb=new THREE.Box3().setFromObject(screenMesh), ws=wb.getSize(new THREE.Vector3()), wc=wb.getCenter(new THREE.Vector3());
+        const q=new THREE.Quaternion(); screenMesh.getWorldQuaternion(q);
+        const normal=new THREE.Vector3(0,0,1).applyQuaternion(q).normalize();
+        const Wf=ws.x, Hf=Math.hypot(ws.y, ws.z);                 // true screen-face size (accounts for the slight tilt)
+        const mat=new THREE.MeshStandardMaterial({color:0x000000, emissive:0xffffff, emissiveIntensity:1.15, roughness:1, metalness:0, envMapIntensity:0, side:THREE.DoubleSide});   // glowing screen (emissive photo); lit material so the dissolve's objectNormal exists
+        const plane=new THREE.Mesh(new THREE.PlaneGeometry(Wf, Hf), mat);
+        plane.quaternion.copy(q); plane.position.copy(computerRig.worldToLocal(wc.clone()).add(normal.multiplyScalar(0.03)));
+        computerRig.add(plane); screenU=makeDissolve(plane, computerRig, 1.0, {yMin:ph.yMin, yInv:ph.yInv, size:Hf}); screenU.uD.value=1;
+        const img=new Image();   // crew photo → FIT (contain, no stretch/crop) with black bars, right-side-up
+        img.onload=()=>{ const cw=2048, ch=Math.round(cw*Hf/Wf);
+          const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+          const cx=cv.getContext('2d'); cx.fillStyle='#000'; cx.fillRect(0,0,cw,ch);
+          const s=Math.min(cw/img.naturalWidth, ch/img.naturalHeight), dw=img.naturalWidth*s, dh=img.naturalHeight*s;
+          cx.drawImage(img,(cw-dw)/2,(ch-dh)/2,dw,dh);   // contained + centred, black bars around
+          mat.emissiveMap=new THREE.CanvasTexture(cv); mat.emissiveMap.colorSpace=THREE.SRGBColorSpace; mat.needsUpdate=true;
+        };
+        img.onerror=()=>{}; img.src='/static/img/crew.jpg';
+      }
     }, undefined, ()=>{});
 
     const hdrRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type:THREE.HalfFloatType, samples: MOBILE?2:4 });
@@ -259,13 +269,14 @@
       rifleRig.rotation.set(0.05, ry, 0);                // sniper rotates; monitor stays STATIC
       warthogRig.rotation.y = ry;
       rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld(); computerRig.updateMatrixWorld();
-      dissolveList.forEach(({u,rig})=>{ u.uRigInv.value.copy(rig.matrixWorld).invert(); });   // un-rotate → stable, shared voxel scale
-      const d  = clamp(scrollY / Math.max(1, bottomTop - innerHeight*0.5));   // sniper→warthog: starts right away on scroll
-      const cTop = crewTop - scrollY;
-      const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);        // warthog→crew monitor (at THE CREW)
+      dissolveList.forEach(({u,rig})=>{ u.uRigInv.value.copy(rig.matrixWorld).invert(); u.uT.value=dustT; });   // un-rotate → stable scale; animate spring
+      const rTop = bottomTop - scrollY, cTop = crewTop - scrollY;
+      const d  = clamp(((innerHeight - rTop)/innerHeight - 0.5)/0.44);        // sniper→warthog: once the countdown card clears (as before)
+      const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);        // warthog→crew monitor (THE CREW) — good, keep
       if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT (centred, on the H)
       if(warthogU) warthogU.uD.value = Math.max(1.0 - d, d2);  // warthog IN with d, then OUT with d2
       if(computerU) computerU.uD.value = 1.0 - d2;       // crew monitor dissolves IN
+      if(screenU) screenU.uD.value = 1.0 - d2;           // ...incl. the crew-photo screen plane
       rifleRig.visible = d < 0.999;
       warthogRig.visible = d > 0.001 && d2 < 0.999;      // skip geometry once fully dissolved
       computerRig.visible = d2 > 0.001;
