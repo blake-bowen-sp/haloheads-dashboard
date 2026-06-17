@@ -161,7 +161,7 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060709);   // black bg — HDRI used for reflections only
     const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
-    const rifleRig = new THREE.Group(); scene.add(rifleRig); rifleRig.position.x = -0.094;  // centre the glowing scope lens (the eye's anchor) — it sits right of the model's mass, so offset further left
+    const rifleRig = new THREE.Group(); scene.add(rifleRig); rifleRig.position.x = -0.11;  // centre the glowing scope lens (the eye's anchor) — it sits right of the model's mass, so offset further left
     const warthogRig = new THREE.Group(); scene.add(warthogRig);   // dropped — under the countdown
     const computerRig = new THREE.Group(); scene.add(computerRig); // THE CREW — sci-fi monitor, screen faces camera
     const brLeftRig = new THREE.Group(); scene.add(brLeftRig);     // battle rifle behind HALO
@@ -170,15 +170,17 @@
     const brRightTilt = new THREE.Group(); brRightTilt.rotation.x = -Math.PI/2; brRightRig.add(brRightTilt);
     brLeftRig.rotation.y = -Math.PI/2; brRightRig.rotation.y = Math.PI/2;   // STATIC mirrored broad sides — no spin
     function visWH(z){ const h = 2*z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); return [h*(innerWidth/innerHeight), h]; }
-    function textMidX(el){ const r=document.createRange(); r.selectNodeContents(el); const b=r.getBoundingClientRect(); return b.left+b.width/2; }
-    function setBRX(rig, sel){ const el=document.querySelector(sel); if(!el||!rig) return; rig.position.x = (textMidX(el)/innerWidth - 0.5) * visWH(camera.position.z)[0]; }
+    function setBRX(rig, sel, side){ const el=document.querySelector(sel); if(!el||!rig) return;     // BRs as bookends just outside HALOHEADS
+      const r=document.createRange(); r.selectNodeContents(el); const b=r.getBoundingClientRect();
+      const vw=visWH(camera.position.z)[0], lim=vw/2-0.55;   // keep the BR fully on-screen (clamps in on narrow viewports)
+      rig.position.x = Math.max(-lim, Math.min(lim, ((side<0?b.left:b.right)/innerWidth - 0.5) * vw + side*0.55)); }
     function fitCamera(){ const a=innerWidth/innerHeight; const z = a<1 ? 8.6/(a*0.92) : 8.6;
       camera.position.set(0,0.1,z); camera.lookAt(0,0,0);
       warthogRig.position.set(0, -visWH(z)[1]*(a<1?0.05:0.18), 0);
       computerRig.position.set(0, -visWH(z)[1]*0.05, 0);
-      setBRX(brLeftRig, '.title .pre'); setBRX(brRightRig, '.title .post'); }   // BRs flank the sniper behind HALO / HEADS
+      setBRX(brLeftRig, '.title .pre', -1); setBRX(brRightRig, '.title .post', 1); }   // BRs as bookends — left & right ends of HALOHEADS
     fitCamera();
-    if(document.fonts) document.fonts.ready.then(()=>{ setBRX(brLeftRig,'.title .pre'); setBRX(brRightRig,'.title .post'); });
+    if(document.fonts) document.fonts.ready.then(()=>{ setBRX(brLeftRig,'.title .pre',-1); setBRX(brRightRig,'.title .post',1); });
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; // instant lighting
