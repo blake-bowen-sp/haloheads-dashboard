@@ -188,20 +188,20 @@
     const dust=new THREE.Points(dg, new THREE.PointsMaterial({color:0x33ffb0,size:0.013,transparent:true,opacity:0.3,depthWrite:false}));
     scene.add(dust); let dustT=0;
 
-    const SCALE = 12.4;   // shared voxel scale → identical voxel size on rifle + warthog
+    const SCALE = 24.8;   // shared voxel scale (2× res) → identical voxel size on rifle + warthog
     const dissolveList = [];
     // green cyber-voxel dissolve sampled in rig-local space (world-unit, rotation-stable) so every mesh shares one noise scale
-    function makeDissolve(root, rigRef){
-      const u = { uD:{value:0}, uEdge:{value:0.05}, uScale:{value:SCALE}, uEC:{value:new THREE.Color(0x2bff9e)}, uRigInv:{value:new THREE.Matrix4()} };
+    function makeDissolve(root, rigRef, flipH, ph){
+      const u = { uD:{value:0}, uEdge:{value:0.05}, uScale:{value:SCALE}, uEC:{value:new THREE.Color(0x2bff9e)}, uRigInv:{value:new THREE.Matrix4()}, uYMin:{value:ph.yMin}, uYInv:{value:ph.yInv}, uFlipH:{value:flipH} };
       root.traverse(o=>{ if(o.isMesh){ (Array.isArray(o.material)?o.material:[o.material]).forEach(mat=>{
         mat.onBeforeCompile=(sh)=>{
-          sh.uniforms.uD=u.uD; sh.uniforms.uEdge=u.uEdge; sh.uniforms.uScale=u.uScale; sh.uniforms.uEC=u.uEC; sh.uniforms.uRigInv=u.uRigInv;
+          sh.uniforms.uD=u.uD; sh.uniforms.uEdge=u.uEdge; sh.uniforms.uScale=u.uScale; sh.uniforms.uEC=u.uEC; sh.uniforms.uRigInv=u.uRigInv; sh.uniforms.uYMin=u.uYMin; sh.uniforms.uYInv=u.uYInv; sh.uniforms.uFlipH=u.uFlipH;
           sh.vertexShader = sh.vertexShader
             .replace('#include <common>','#include <common>\nvarying vec3 vDP;\nuniform mat4 uRigInv;')
             .replace('#include <begin_vertex>','#include <begin_vertex>\nvDP = (uRigInv * modelMatrix * vec4(position,1.0)).xyz;');
           sh.fragmentShader = sh.fragmentShader
-            .replace('#include <common>','#include <common>\nvarying vec3 vDP;uniform float uD;uniform float uEdge;uniform float uScale;uniform vec3 uEC;\nfloat dh(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}')
-            .replace('#include <dithering_fragment>','#include <dithering_fragment>\n{float n=dh(floor(vDP*uScale));if(n<uD)discard;float e=(1.0-clamp((n-uD)/uEdge,0.0,1.0))*smoothstep(0.0,0.02,uD);gl_FragColor.rgb+=uEC*e*3.4;}');
+            .replace('#include <common>','#include <common>\nvarying vec3 vDP;uniform float uD;uniform float uEdge;uniform float uScale;uniform vec3 uEC;uniform float uYMin;uniform float uYInv;uniform float uFlipH;\nfloat dh(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}')
+            .replace('#include <dithering_fragment>','#include <dithering_fragment>\n{float n=dh(floor(vDP*uScale));float h=clamp((vDP.y-uYMin)*uYInv,0.0,1.0);float v=abs(uFlipH-h)*0.75+n*0.25;if(v<uD)discard;float e=(1.0-clamp((v-uD)/uEdge,0.0,1.0))*smoothstep(0.0,0.02,uD);gl_FragColor.rgb+=uEC*e*3.4;}');
         };
         mat.needsUpdate=true;
       }); }});
@@ -211,15 +211,16 @@
 
     let rifleU=null, warthogU=null, computerU=null;
     function place(o, target){ const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
-      const sc=target/Math.max(s.x,s.y,s.z); o.scale.setScalar(sc); o.position.set(-c.x*sc,-c.y*sc,-c.z*sc); }
+      const sc=target/Math.max(s.x,s.y,s.z); o.scale.setScalar(sc); o.position.set(-c.x*sc,-c.y*sc,-c.z*sc);
+      return { yMin:-s.y*sc/2, yInv:1/Math.max(1e-6,s.y*sc) }; }   // rig-local vertical extent for bottom→top dissolve
 
     const portrait = innerWidth/innerHeight < 1;
-    new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; place(o, 5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig); }, undefined, ()=>{});
-    new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig); warthogU.uD.value=1; }, undefined, ()=>{});
+    new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; const ph=place(o, 5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig, 0.0, ph); }, undefined, ()=>{});   // OUT bottom→top
+    new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; const ph=place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig, 1.0, ph); warthogU.uD.value=1; }, undefined, ()=>{});   // IN bottom→top
     new GLTFLoader().load('/static/models/computer.glb', (g)=>{   // sci-fi monitor; crew photo glows on the screen
       const o=g.scene;
       o.traverse(m=>{ if(m.isMesh && m.name==='Plane001_digital_displays_0'){ m.material=m.material.clone(); m.__screen=true; } });  // own material for the screen
-      place(o, portrait?5.6:6.8); computerRig.add(o); computerU=makeDissolve(o, computerRig); computerU.uD.value=1;
+      const ph=place(o, portrait?5.6:6.8); computerRig.add(o); computerU=makeDissolve(o, computerRig, 1.0, ph); computerU.uD.value=1;   // IN bottom→top
       const img=new Image();   // crew photo → FIT (no stretch/crop) on a black screen of the panel's aspect (~1.90:1)
       img.onload=()=>{ const cw=2048, ch=Math.round(cw*2.43/4.61);
         const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
