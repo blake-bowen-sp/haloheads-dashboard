@@ -161,15 +161,24 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060709);   // black bg — HDRI used for reflections only
     const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
-    const rifleRig = new THREE.Group(); scene.add(rifleRig); rifleRig.position.x = -0.03;  // centre, nudged a hair left onto the H
+    const rifleRig = new THREE.Group(); scene.add(rifleRig); rifleRig.position.x = -0.094;  // centre the glowing scope lens (the eye's anchor) — it sits right of the model's mass, so offset further left
     const warthogRig = new THREE.Group(); scene.add(warthogRig);   // dropped — under the countdown
     const computerRig = new THREE.Group(); scene.add(computerRig); // THE CREW — sci-fi monitor, screen faces camera
+    const brLeftRig = new THREE.Group(); scene.add(brLeftRig);     // battle rifle behind HALO
+    const brRightRig = new THREE.Group(); scene.add(brRightRig);   // battle rifle behind HEADS
+    const brLeftTilt = new THREE.Group(); brLeftTilt.rotation.x = -Math.PI/2; brLeftRig.add(brLeftTilt);   // barrel UP
+    const brRightTilt = new THREE.Group(); brRightTilt.rotation.x = -Math.PI/2; brRightRig.add(brRightTilt);
+    brLeftRig.rotation.y = -Math.PI/2; brRightRig.rotation.y = Math.PI/2;   // STATIC mirrored broad sides — no spin
     function visWH(z){ const h = 2*z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); return [h*(innerWidth/innerHeight), h]; }
+    function textMidX(el){ const r=document.createRange(); r.selectNodeContents(el); const b=r.getBoundingClientRect(); return b.left+b.width/2; }
+    function setBRX(rig, sel){ const el=document.querySelector(sel); if(!el||!rig) return; rig.position.x = (textMidX(el)/innerWidth - 0.5) * visWH(camera.position.z)[0]; }
     function fitCamera(){ const a=innerWidth/innerHeight; const z = a<1 ? 8.6/(a*0.92) : 8.6;
       camera.position.set(0,0.1,z); camera.lookAt(0,0,0);
       warthogRig.position.set(0, -visWH(z)[1]*(a<1?0.05:0.18), 0);
-      computerRig.position.set(0, -visWH(z)[1]*0.05, 0); }   // THE CREW — big quad, centred (slightly below the label)
+      computerRig.position.set(0, -visWH(z)[1]*0.05, 0);
+      setBRX(brLeftRig, '.title .pre'); setBRX(brRightRig, '.title .post'); }   // BRs flank the sniper behind HALO / HEADS
     fitCamera();
+    if(document.fonts) document.fonts.ready.then(()=>{ setBRX(brLeftRig,'.title .pre'); setBRX(brRightRig,'.title .post'); });
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; // instant lighting
@@ -188,7 +197,7 @@
     const dust=new THREE.Points(dg, new THREE.PointsMaterial({color:0x33ffb0,size:0.013,transparent:true,opacity:0.3,depthWrite:false}));
     scene.add(dust); let dustT=0;
 
-    const SCALE = 99.2;   // shared voxel scale (4× res) → identical voxel size on rifle + warthog
+    const SCALE = 49.6;   // shared voxel scale (doubled — finer voxels) → identical voxel size on every mesh
     const dissolveList = [];
     // green cyber-voxel dissolve sampled in rig-local space (world-unit, rotation-stable) so every mesh shares one noise scale
     function makeDissolve(root, rigRef, flipH, ph){
@@ -201,7 +210,7 @@
             .replace('#include <begin_vertex>','#include <begin_vertex>\nvDP = (uRigInv * modelMatrix * vec4(position,1.0)).xyz;');
           sh.fragmentShader = sh.fragmentShader
             .replace('#include <common>','#include <common>\nvarying vec3 vDP;uniform float uD;uniform float uEdge;uniform float uScale;uniform vec3 uEC;uniform float uYMin;uniform float uYInv;uniform float uFlipH;\nfloat dh(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}')
-            .replace('#include <dithering_fragment>','#include <dithering_fragment>\n{float n=dh(floor(vDP*uScale));float h=clamp((vDP.y-uYMin)*uYInv,0.0,1.0);float v=abs(uFlipH-h)*0.75+n*0.25;if(v<uD)discard;float e=(1.0-clamp((v-uD)/uEdge,0.0,1.0))*smoothstep(0.0,0.02,uD);float cn=fract(n*43.0+0.5);vec3 tint=uEC+vec3(-0.18,0.05,0.28)*(cn-0.5);gl_FragColor.rgb+=tint*e*3.4*(0.82+0.36*cn);}');
+            .replace('#include <dithering_fragment>','#include <dithering_fragment>\n{float n=dh(floor(vDP*uScale));float h=clamp((vDP.y-uYMin)*uYInv,0.0,1.0);float v=abs(uFlipH-h)*0.75+n*0.25;if(v<uD)discard;float e=(1.0-clamp((v-uD)/uEdge,0.0,1.0))*smoothstep(0.0,0.02,uD);gl_FragColor.rgb+=uEC*e*3.4;}');
         };
         mat.needsUpdate=true;
       }); }});
@@ -209,7 +218,7 @@
       return u;
     }
 
-    let rifleU=null, warthogU=null, computerU=null, screenU=null;
+    let rifleU=null, warthogU=null, computerU=null, screenU=null, brLeftU=null, brRightU=null;
     function place(o, target){ const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
       const sc=target/Math.max(s.x,s.y,s.z); o.scale.setScalar(sc); o.position.set(-c.x*sc,-c.y*sc,-c.z*sc);
       return { yMin:-s.y*sc/2, yInv:1/Math.max(1e-6,s.y*sc) }; }   // rig-local vertical extent for bottom→top dissolve
@@ -217,6 +226,13 @@
     const portrait = innerWidth/innerHeight < 1;
     new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; const ph=place(o, 5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig, 0.0, ph); }, undefined, ()=>{});   // OUT bottom→top
     new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; const ph=place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig, 1.0, ph); warthogU.uD.value=1; }, undefined, ()=>{});   // IN bottom→top
+    const BR_SIZE = portrait ? 2.5 : 3.0;                                   // battle rifles: static, dissolve OUT early (before the sniper sweeps wide)
+    new GLTFLoader().load('/static/models/br55.glb', (g)=>{
+      const a=g.scene, b=a.clone(true);
+      b.traverse(o=>{ if(o.isMesh) o.material = Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone(); });
+      place(a, BR_SIZE); brLeftTilt.add(a);  brLeftU=makeDissolve(a, brLeftRig, 0.0, {yMin:-BR_SIZE/2, yInv:1/BR_SIZE});
+      place(b, BR_SIZE); brRightTilt.add(b); brRightU=makeDissolve(b, brRightRig, 0.0, {yMin:-BR_SIZE/2, yInv:1/BR_SIZE});
+    }, undefined, ()=>{});
     // THE CREW — crew photo on a big glowing quad (no monitor); the warthog dissolves into it
     const crewImg=new Image();
     crewImg.onload=()=>{ const aspect=crewImg.naturalWidth/crewImg.naturalHeight, vwh=visWH(camera.position.z);
@@ -253,16 +269,20 @@
       const ry = p*Math.PI*2.4;                          // tight rotation only — no auto-spin
       rifleRig.rotation.set(0.05, ry, 0);                // sniper rotates; monitor stays STATIC
       warthogRig.rotation.y = ry;
-      rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld(); computerRig.updateMatrixWorld();
+      rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld(); computerRig.updateMatrixWorld(); brLeftRig.updateMatrixWorld(); brRightRig.updateMatrixWorld();
       dissolveList.forEach(({u,rig})=>{ u.uRigInv.value.copy(rig.matrixWorld).invert(); });   // un-rotate → stable, shared voxel scale
       const rTop = bottomTop - scrollY, cTop = crewTop - scrollY;
       const d  = clamp(((innerHeight - rTop)/innerHeight - 0.5)/0.44);        // sniper→warthog: once the countdown card clears (as before)
       const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);        // warthog→crew monitor (THE CREW) — good, keep
+      const dBR = clamp(p/0.13);                          // battle rifles dissolve OUT early — gone before the sniper rotates sideways
       if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT (centred, on the H)
+      if(brLeftU) brLeftU.uD.value = dBR;                // battle rifles dissolve OUT (no rotation)
+      if(brRightU) brRightU.uD.value = dBR;
       if(warthogU) warthogU.uD.value = Math.max(1.0 - d, d2);  // warthog IN with d, then OUT with d2
       if(computerU) computerU.uD.value = 1.0 - d2;       // crew monitor dissolves IN
       if(screenU) screenU.uD.value = 1.0 - d2;           // ...incl. the crew-photo screen plane
       rifleRig.visible = d < 0.999;
+      brLeftRig.visible = brRightRig.visible = dBR < 0.999;
       warthogRig.visible = d > 0.001 && d2 < 0.999;      // skip geometry once fully dissolved
       computerRig.visible = d2 > 0.001;
       composer.render();
