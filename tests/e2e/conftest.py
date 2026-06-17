@@ -13,5 +13,8 @@ def browser_type_launch_args(browser_type_launch_args):
             "--use-angle=swiftshader",
             "--enable-unsafe-swiftshader",
             "--ignore-gpu-blocklist",
+            # Let <audio>.play() resolve without a trusted gesture so the music
+            # tests can assert the scroll→playback wiring deterministically.
+            "--autoplay-policy=no-user-gesture-required",
         ],
     }

@@ -38,6 +38,16 @@
       box-shadow:0 8px 30px rgba(51,255,176,.28); transition:transform .2s, box-shadow .3s; white-space:nowrap}
     .up:hover{transform:translateY(-1px); box-shadow:0 10px 40px rgba(51,255,176,.5)}
     .hdr-actions{display:flex; align-items:center; gap:13px}
+    .snd{display:grid; place-items:center; width:38px; height:38px; padding:0; border-radius:50%; cursor:pointer;
+      color:var(--acc); background:rgba(51,255,176,.08); border:1px solid var(--line);
+      transition:transform .2s, background .25s, color .25s; -webkit-tap-highlight-color:transparent}
+    .snd:hover{transform:translateY(-1px); background:rgba(51,255,176,.16)}
+    .snd svg{display:block}
+    .snd.muted{color:var(--dim); background:rgba(255,255,255,.04)}
+    .snd .slash{display:none}
+    .snd.muted .waves{display:none}
+    .snd.muted .slash{display:block}
+    .snd[hidden]{display:none}
     .countdown{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none}
     .cd-label{font-size:9px; letter-spacing:.4em; color:var(--dim); text-transform:uppercase}
     .cd-time{font-size:15px; font-weight:500; letter-spacing:.12em; color:#fff; margin-top:3px}
@@ -110,6 +120,13 @@
     <div class="mark">HALO<i>HEADS</i></div>
     <div class="countdown"><div class="cd-label">Next Bloodletting</div><div class="cd-time" id="cd-time">—</div><div class="cd-date">July 6, 2026 · 7:00 PM CT</div></div>
     <div class="hdr-actions">
+      <button id="snd-toggle" class="snd" type="button" aria-label="Toggle menu music" aria-pressed="true" hidden>
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 9.5v5h3.2l4.3 3.4V6.1L7.2 9.5H4z" fill="currentColor" stroke="none"/>
+          <g class="waves"><path d="M15.2 8.8a4.5 4.5 0 0 1 0 6.4"/><path d="M17.8 6.2a8 8 0 0 1 0 11.6"/></g>
+          <line class="slash" x1="3" y1="3" x2="21" y2="21" stroke="var(--loss)" stroke-width="2"/>
+        </svg>
+      </button>
       <label class="up" for="up-input">Upload</label>
       <input id="up-input" type="file" accept="image/*" multiple hidden>
     </div>
@@ -140,6 +157,9 @@
     <div class="crew-label">The Crew</div>
     <div class="crew-sub">Spartans of the bloodletting</div>
   </section>
+
+  <audio id="snd-menu" src="/static/audio/menu.mp3" preload="auto" loop></audio>
+  <audio id="snd-battle" src="/static/audio/battle.mp3" preload="auto" loop></audio>
 
   <script type="importmap">
   { "imports": {
@@ -277,6 +297,26 @@
     let docH=1, bottomTop=0, crewTop=0;                   // cached layout — never read inside the loop (no forced reflow)
     function recalc(){ docH=Math.max(1, document.documentElement.scrollHeight - innerHeight); bottomTop=bottomEl.offsetTop; crewTop=crewEl.offsetTop; }
     recalc();
+
+    // ── menu↔battle music: equal-power crossfade locked to the sniper→warthog dissolve `d` ──
+    const sndMenu=document.getElementById('snd-menu'), sndBattle=document.getElementById('snd-battle');
+    const sndBtn=document.getElementById('snd-toggle'); const SND_VOL=0.42;
+    let sndReady=false, sndStarted=false, sndMuted=localStorage.getItem('hh-muted')==='1', sndOk=0;
+    function applyMusic(d){ if(!sndReady) return;                 // SAME d that drives the visual dissolve → audio & pixels move together
+      sndMenu.volume   = Math.cos(d*Math.PI/2)*SND_VOL;          // choral: full on the sniper (d=0), gone by the warthog (d=1)
+      sndBattle.volume = Math.sin(d*Math.PI/2)*SND_VOL; }        // battle riff: in with the warthog, holds full through the crew (d stays 1)
+    function paintBtn(){ sndBtn.classList.toggle('muted', sndMuted); sndBtn.setAttribute('aria-pressed', String(!sndMuted)); }
+    function startMusic(){ if(sndStarted||!sndReady) return; sndStarted=true; sndMenu.play().catch(()=>{}); sndBattle.play().catch(()=>{}); }
+    function enableMusic(){ if(sndReady) return; sndReady=true;   // both tracks decoded → reveal the control + arm the start triggers
+      sndMenu.muted=sndBattle.muted=sndMuted; sndBtn.hidden=false; paintBtn();
+      ['scroll','wheel','pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev, startMusic, {once:true, passive:true}));   // first gesture unlocks audio (a desktop wheel-scroll alone can't, so back it with pointer/key)
+      sndBtn.addEventListener('click', ()=>{ sndMuted=!sndMuted; localStorage.setItem('hh-muted', sndMuted?'1':'0');
+        sndMenu.muted=sndBattle.muted=sndMuted; paintBtn(); if(!sndMuted) startMusic(); }); }
+    [sndMenu, sndBattle].forEach(a=>{                             // only light up once BOTH files actually decode (missing → control stays hidden, page unaffected)
+      if(a.readyState>=3){ if(++sndOk===2) enableMusic(); }
+      else a.addEventListener('canplay', ()=>{ if(++sndOk===2) enableMusic(); }, {once:true});
+      a.addEventListener('error', ()=>{ sndBtn.hidden=true; }, {once:true}); });
+
     (function loop(){
       requestAnimationFrame(loop);
       const p = Math.min(1, scrollY/docH);               // scroll-LOCKED, no smoothing/spring
@@ -297,6 +337,7 @@
       const rTop = bottomTop - scrollY, cTop = crewTop - scrollY;
       const d  = clamp(((innerHeight - rTop)/innerHeight - 0.5)/0.44);        // sniper→warthog: once the countdown card clears (as before)
       const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);        // warthog→crew monitor (THE CREW) — good, keep
+      applyMusic(d);                                                         // crossfade menu↔battle on the SAME signal as the rifle→warthog dissolve
       if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT (centred, on the H)
       if(brLeftU) brLeftU.uD.value = dBR;                // battle rifles dissolve OUT (no rotation)
       if(brRightU) brRightU.uD.value = dBR;
