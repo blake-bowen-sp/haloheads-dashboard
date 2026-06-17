@@ -42,8 +42,12 @@
       align-items:center; justify-content:center; text-align:center; padding:0 22px; pointer-events:none}
     .kicker{font-size:clamp(9px,1.2vw,12px); letter-spacing:.55em; color:var(--acc); text-transform:uppercase;
       opacity:0; animation:rise .9s .2s ease forwards}
-    .title{font-weight:200; letter-spacing:.04em; line-height:.92; font-size:clamp(48px,13vw,176px); color:#fff;
+    .title{display:flex; justify-content:center; align-items:baseline; width:100%;
+      font-weight:200; letter-spacing:.04em; line-height:.92; font-size:clamp(48px,13vw,176px); color:#fff;
       margin:18px 0 0; opacity:0; animation:rise 1s .35s ease forwards}
+    .title .pre{flex:1 1 0; text-align:right; min-width:0}      /* HALO — grows, ends at centre */
+    .title .post{flex:1 1 0; text-align:left; min-width:0}      /* HEADS — grows, starts at centre */
+    .title .mid{flex:0 0 auto; position:relative; left:0.02em}  /* H — anchored to viewport centre */
     .sub{font-size:clamp(12px,1.4vw,15px); font-weight:300; letter-spacing:.06em; color:var(--dim);
       margin-top:22px; max-width:30ch; opacity:0; animation:rise 1s .55s ease forwards}
     @keyframes rise{from{opacity:0; transform:translateY(20px)} to{opacity:1; transform:none}}
@@ -103,7 +107,7 @@
 
   <section class="hero">
     <div class="kicker">Master Chief Collection · Carnage Reports</div>
-    <h1 class="title"><span id="brL">HA</span>LO<span id="hx">H</span>EA<span id="brR">DS</span></h1>
+    <h1 class="title"><span class="pre">HALO</span><span class="mid" id="hx">H</span><span class="post">EADS</span></h1>
     <p class="sub">Every kill, death, and assist — tracked by gamertag.</p>
     <div class="cue"></div>
   </section>
@@ -157,26 +161,15 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060709);   // black bg — HDRI used for reflections only
     const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
-    const rifleRig = new THREE.Group(); scene.add(rifleRig);       // centred on the H in HEADS
+    const rifleRig = new THREE.Group(); scene.add(rifleRig);       // anchored dead-centre (the H is too → aligned by construction)
     const warthogRig = new THREE.Group(); scene.add(warthogRig);   // dropped — under the countdown
     const computerRig = new THREE.Group(); scene.add(computerRig); // THE CREW — sci-fi monitor, screen faces camera
-    const brLeftRig = new THREE.Group(); scene.add(brLeftRig);     // battle rifle behind HA
-    const brRightRig = new THREE.Group(); scene.add(brRightRig);   // battle rifle behind DS
-    const brLeftTilt = new THREE.Group(); brLeftTilt.rotation.x = -Math.PI/2; brLeftRig.add(brLeftTilt);    // barrel UP
-    const brRightTilt = new THREE.Group(); brRightTilt.rotation.x = -Math.PI/2; brRightRig.add(brRightTilt);
-    brLeftRig.rotation.y = -Math.PI/2; brRightRig.rotation.y = Math.PI/2;   // STATIC mirrored broad sides — no spin
-    const RIFLE_DX = 0.04;   // nudge so the rifle's axis sits on the H glyph centre
     function visWH(z){ const h = 2*z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); return [h*(innerWidth/innerHeight), h]; }
-    function setRigX(rig, id, dx){ const el=document.getElementById(id); if(!el||!rig) return;        // centre a rig on its letters (glyph centre)
-      const r=el.getBoundingClientRect(), ls=0.04*parseFloat(getComputedStyle(document.querySelector('.title')).fontSize);
-      rig.position.x = ((r.left + (r.width - ls)/2)/innerWidth - 0.5) * visWH(camera.position.z)[0] + (dx||0); }
-    function alignRigs(){ setRigX(rifleRig,'hx',RIFLE_DX); setRigX(brLeftRig,'brL',0); setRigX(brRightRig,'brR',0); }
     function fitCamera(){ const a=innerWidth/innerHeight; const z = a<1 ? 8.6/(a*0.92) : 8.6;
       camera.position.set(0,0.1,z); camera.lookAt(0,0,0);
       warthogRig.position.set(0, -visWH(z)[1]*(a<1?0.05:0.18), 0);
-      computerRig.position.set(0, -visWH(z)[1]*0.04, 0); alignRigs(); }
+      computerRig.position.set(0, -visWH(z)[1]*0.04, 0); }
     fitCamera();
-    if(document.fonts) document.fonts.ready.then(alignRigs);
 
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; // instant lighting
@@ -215,20 +208,13 @@
       return u;
     }
 
-    let rifleU=null, warthogU=null, brLeftU=null, brRightU=null, computerU=null;
+    let rifleU=null, warthogU=null, computerU=null;
     function place(o, target){ const b=new THREE.Box3().setFromObject(o),s=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
       const sc=target/Math.max(s.x,s.y,s.z); o.scale.setScalar(sc); o.position.set(-c.x*sc,-c.y*sc,-c.z*sc); }
 
     const portrait = innerWidth/innerHeight < 1;
     new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; place(o, 5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig); }, undefined, ()=>{});
     new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig); warthogU.uD.value=1; }, undefined, ()=>{});
-    const BR_SIZE = portrait ? 2.5 : 3.0;
-    new GLTFLoader().load('/static/models/br55.glb', (g)=>{        // one fetch → clone (own materials so each dissolves alone)
-      const a=g.scene, b=a.clone(true);
-      b.traverse(o=>{ if(o.isMesh) o.material = Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone(); });
-      place(a, BR_SIZE); brLeftTilt.add(a);  brLeftU=makeDissolve(a, brLeftRig);
-      place(b, BR_SIZE); brRightTilt.add(b); brRightU=makeDissolve(b, brRightRig);
-    }, undefined, ()=>{});
     new GLTFLoader().load('/static/models/computer.glb', (g)=>{   // sci-fi monitor; crew photo glows on the screen
       const o=g.scene;
       o.traverse(m=>{ if(m.isMesh && m.name==='Plane001_digital_displays_0'){ m.material=m.material.clone(); m.__screen=true; } });  // own material for the screen
@@ -256,19 +242,17 @@
       requestAnimationFrame(loop);
       const p = Math.min(1, scrollY/docH);               // scroll-LOCKED, no smoothing/spring
       const ry = p*Math.PI*2.4;                          // tight rotation only — no auto-spin
-      rifleRig.rotation.set(0.05, ry, 0);                // sniper rotates; battle rifles + monitor stay STATIC
+      rifleRig.rotation.set(0.05, ry, 0);                // sniper rotates; monitor stays STATIC
       warthogRig.rotation.y = ry;
-      rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld(); brLeftRig.updateMatrixWorld(); brRightRig.updateMatrixWorld(); computerRig.updateMatrixWorld();
+      rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld(); computerRig.updateMatrixWorld();
       dissolveList.forEach(({u,rig})=>{ u.uRigInv.value.copy(rig.matrixWorld).invert(); });   // un-rotate → stable, shared voxel scale
-      const rTop = bottomTop - scrollY, cTop = crewTop - scrollY;   // viewport-relative tops, no forced layout
-      const d  = clamp(((innerHeight - rTop)/innerHeight - 0.5)/0.44);  // rifle/BR OUT → warthog IN (countdown)
-      const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);  // warthog OUT → crew monitor IN (THE CREW)
+      const d  = clamp(scrollY / Math.max(1, bottomTop - innerHeight*0.5));   // sniper→warthog: starts right away on scroll
+      const cTop = crewTop - scrollY;
+      const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);        // warthog→crew monitor (at THE CREW)
       if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT (centred, on the H)
-      if(brLeftU) brLeftU.uD.value = d;                  // battle rifles dissolve OUT too (no rotation)
-      if(brRightU) brRightU.uD.value = d;
       if(warthogU) warthogU.uD.value = Math.max(1.0 - d, d2);  // warthog IN with d, then OUT with d2
       if(computerU) computerU.uD.value = 1.0 - d2;       // crew monitor dissolves IN
-      rifleRig.visible = brLeftRig.visible = brRightRig.visible = d < 0.999;
+      rifleRig.visible = d < 0.999;
       warthogRig.visible = d > 0.001 && d2 < 0.999;      // skip geometry once fully dissolved
       computerRig.visible = d2 > 0.001;
       composer.render();
