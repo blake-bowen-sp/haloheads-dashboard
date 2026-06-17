@@ -21,6 +21,10 @@
     #scene{position:fixed; inset:0; width:100vw; height:100vh; z-index:0; display:block}
     .veil{position:fixed; inset:0; z-index:1; pointer-events:none;
       background:radial-gradient(135% 115% at 50% 34%, transparent 56%, rgba(0,0,0,.62) 100%)}
+    #loader{position:fixed; inset:0; z-index:200; background:var(--bg); display:flex; align-items:center; justify-content:center; transition:opacity .6s ease}
+    #loader.hidden{opacity:0; pointer-events:none}
+    .ld-ring{width:40px; height:40px; border-radius:50%; border:2px solid rgba(51,255,176,.16); border-top-color:var(--acc); animation:ldspin .8s linear infinite}
+    @keyframes ldspin{to{transform:rotate(360deg)}}
     header{position:fixed; top:0; left:0; right:0; z-index:40; display:flex; align-items:center;
       justify-content:space-between; padding:18px clamp(16px,4vw,52px) 24px}
     header::before{content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
@@ -97,6 +101,7 @@
   </style>
 </head>
 <body>
+  <div id="loader"><div class="ld-ring"></div></div>
   <canvas id="scene"></canvas>
   <div class="veil"></div>
 
@@ -182,9 +187,17 @@
     fitCamera();
     if(document.fonts) document.fonts.ready.then(()=>{ setBRX(brLeftRig,'.title .pre',-1); setBRX(brRightRig,'.title .post',1); });
 
+    const loaderEl=document.getElementById('loader'); let revealed=false;
+    function reveal(){ if(revealed) return; revealed=true; loaderEl.classList.add('hidden'); setTimeout(()=>{ loaderEl.style.display='none'; }, 650); }
+    const manager=new THREE.LoadingManager();
+    manager.onLoad=()=>{ (renderer.compileAsync?renderer.compileAsync(scene,camera):Promise.resolve()).then(reveal,reveal); };   // precompile shaders, then reveal
+    setTimeout(reveal, 9000);   // fallback if a load hangs
+    function opaqueFix(root){ root.traverse(m=>{ if(m.isMesh){ (Array.isArray(m.material)?m.material:[m.material]).forEach(mat=>{   // GLBs flag everything transparent → make the opaque parts opaque+depth-writing so the warthog body stops rendering over its tyres
+      if(mat.transparent && mat.opacity>=0.99){ mat.transparent=false; mat.depthWrite=true; mat.needsUpdate=true; } }); } }); }
+
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; // instant lighting
-    new RGBELoader().load('/static/models/env.hdr', (hdr)=>{               // real HDRI reflections (not shown)
+    new RGBELoader(manager).load('/static/models/env.hdr', (hdr)=>{        // real HDRI reflections (not shown)
       hdr.mapping = THREE.EquirectangularReflectionMapping;
       scene.environment = pmrem.fromEquirectangular(hdr).texture; hdr.dispose();
     });
@@ -226,12 +239,13 @@
       return { yMin:-s.y*sc/2, yInv:1/Math.max(1e-6,s.y*sc) }; }   // rig-local vertical extent for bottom→top dissolve
 
     const portrait = innerWidth/innerHeight < 1;
-    new GLTFLoader().load('/static/models/sniper.glb', (g)=>{ const o=g.scene; const ph=place(o, 5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig, 0.0, ph); }, undefined, ()=>{});   // OUT bottom→top
-    new GLTFLoader().load('/static/models/warthog.glb', (g)=>{ const o=g.scene; const ph=place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig, 1.0, ph); warthogU.uD.value=1; }, undefined, ()=>{});   // IN bottom→top
-    const BR_SIZE = portrait ? 2.5 : 3.0;                                   // battle rifles: static, dissolve OUT early (before the sniper sweeps wide)
-    new GLTFLoader().load('/static/models/br55.glb', (g)=>{
+    new GLTFLoader(manager).load('/static/models/sniper.glb', (g)=>{ const o=g.scene; opaqueFix(o); const ph=place(o, 5.4); rifleRig.add(o); rifleU=makeDissolve(o, rifleRig, 0.0, ph); }, undefined, ()=>{});   // OUT bottom→top
+    new GLTFLoader(manager).load('/static/models/warthog.glb', (g)=>{ const o=g.scene; opaqueFix(o); const ph=place(o, portrait?7.4:8.2); warthogRig.add(o); warthogU=makeDissolve(o, warthogRig, 1.0, ph); warthogU.uD.value=1; }, undefined, ()=>{});   // IN bottom→top
+    const BR_SIZE = portrait ? 2.5 : 3.0;                                   // battle rifles: dissolve OUT early + spin opposite ways (before the sniper sweeps wide)
+    new GLTFLoader(manager).load('/static/models/br55.glb', (g)=>{
       const a=g.scene, b=a.clone(true);
       b.traverse(o=>{ if(o.isMesh) o.material = Array.isArray(o.material)?o.material.map(m=>m.clone()):o.material.clone(); });
+      opaqueFix(a); opaqueFix(b);
       place(a, BR_SIZE); brLeftTilt.add(a);  brLeftU=makeDissolve(a, brLeftRig, 0.0, {yMin:-BR_SIZE/2, yInv:1/BR_SIZE});
       place(b, BR_SIZE); brRightTilt.add(b); brRightU=makeDissolve(b, brRightRig, 0.0, {yMin:-BR_SIZE/2, yInv:1/BR_SIZE});
     }, undefined, ()=>{});
@@ -269,14 +283,16 @@
         dustPos[i*3+2] = z + (Math.sin(x*0.5+dustT*0.22)+Math.cos(y*0.4-dustT*0.15))*0.26; }
       dg.attributes.position.needsUpdate=true; dust.position.y = -p*1.8;
       const ry = p*Math.PI*2.4;                          // tight rotation only — no auto-spin
+      const dBR = clamp(p/0.13);                          // battle rifles dissolve OUT early — gone before the sniper rotates sideways
       rifleRig.rotation.set(0.05, ry, 0);                // sniper rotates; monitor stays STATIC
       warthogRig.rotation.y = ry;
+      brLeftRig.rotation.y  = -Math.PI/2 + dBR*Math.PI*1.6;  // BRs spin OPPOSITE directions as they dissolve out
+      brRightRig.rotation.y =  Math.PI/2 - dBR*Math.PI*1.6;
       rifleRig.updateMatrixWorld(); warthogRig.updateMatrixWorld(); computerRig.updateMatrixWorld(); brLeftRig.updateMatrixWorld(); brRightRig.updateMatrixWorld();
       dissolveList.forEach(({u,rig})=>{ u.uRigInv.value.copy(rig.matrixWorld).invert(); });   // un-rotate → stable, shared voxel scale
       const rTop = bottomTop - scrollY, cTop = crewTop - scrollY;
       const d  = clamp(((innerHeight - rTop)/innerHeight - 0.5)/0.44);        // sniper→warthog: once the countdown card clears (as before)
       const d2 = clamp(((innerHeight - cTop)/innerHeight - 0.5)/0.44);        // warthog→crew monitor (THE CREW) — good, keep
-      const dBR = clamp(p/0.13);                          // battle rifles dissolve OUT early — gone before the sniper rotates sideways
       if(rifleU) rifleU.uD.value = d;                    // rifle dissolves OUT (centred, on the H)
       if(brLeftU) brLeftU.uD.value = dBR;                // battle rifles dissolve OUT (no rotation)
       if(brRightU) brRightU.uD.value = dBR;
