@@ -37,6 +37,7 @@
       color:#06120e; background:var(--acc); padding:10px 20px; border-radius:100px;
       box-shadow:0 8px 30px rgba(51,255,176,.28); transition:transform .2s, box-shadow .3s; white-space:nowrap}
     .up:hover{transform:translateY(-1px); box-shadow:0 10px 40px rgba(51,255,176,.5)}
+    .hdr-actions{display:flex; align-items:center; gap:13px}
     .countdown{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none}
     .cd-label{font-size:9px; letter-spacing:.4em; color:var(--dim); text-transform:uppercase}
     .cd-time{font-size:15px; font-weight:500; letter-spacing:.12em; color:#fff; margin-top:3px}
@@ -108,7 +109,10 @@
   <header>
     <div class="mark">HALO<i>HEADS</i></div>
     <div class="countdown"><div class="cd-label">Next Bloodletting</div><div class="cd-time" id="cd-time">—</div><div class="cd-date">July 6, 2026 · 7:00 PM CT</div></div>
-    <a class="up" href="/upload">Upload</a>
+    <div class="hdr-actions">
+      <label class="up" for="up-input">Upload</label>
+      <input id="up-input" type="file" accept="image/*" multiple hidden>
+    </div>
   </header>
 
   <section class="hero">
@@ -314,28 +318,44 @@
     document.querySelectorAll('.panel').forEach(p=>io.observe(p));
 
     const cell=(t,cls)=>{ const td=document.createElement('td'); td.textContent=t; if(cls) td.className=cls; return td; };
-    fetch('/api/leaderboard').then(r=>r.json()).then(d=>{
-      const tb=document.querySelector('#leaderboard tbody');
-      if(!d.length){ tb.innerHTML='<tr><td colspan="9" class="empty">No reports analyzed yet</td></tr>'; return; }
-      d.forEach((p,i)=>{ const tr=document.createElement('tr');
-        tr.appendChild(cell(i+1,'rank')); tr.appendChild(cell(p.gamertag,'name'));
-        tr.appendChild(cell(p.score)); tr.appendChild(cell(p.kills)); tr.appendChild(cell(p.assists)); tr.appendChild(cell(p.deaths));
-        tr.appendChild(cell(p.net_kd,'kd')); tr.appendChild(cell(Math.round(p.win_rate*100)+'%', p.win_rate>=0.5?'win':'loss')); tr.appendChild(cell(p.games)); tb.appendChild(tr); });
-      recalc();
-    });
-    fetch('/api/gametypes').then(r=>r.json()).then(d=>{
-      const wrap=document.getElementById('gametypes'), grid=document.createElement('div'); grid.className='gt-grid';
-      Object.keys(d).forEach(gt=>{ const panel=document.createElement('div'); panel.className='panel in';
-        const h=document.createElement('div'); h.className='gt-h'; h.textContent=gt; panel.appendChild(h);
-        const sc=document.createElement('div'); sc.className='scroller';
-        const table=document.createElement('table'); table.className='gt'; table.innerHTML='<thead><tr><th>Username</th><th>Score</th><th>K</th><th>A</th><th>D</th><th>K/D</th></tr></thead>';
-        const tb=document.createElement('tbody');
-        d[gt].forEach(p=>{ const tr=document.createElement('tr'); tr.appendChild(cell(p.gamertag,'name'));
+    function refreshStats(){
+      fetch('/api/leaderboard').then(r=>r.json()).then(d=>{
+        const tb=document.querySelector('#leaderboard tbody'); tb.innerHTML='';
+        if(!d.length){ tb.innerHTML='<tr><td colspan="9" class="empty">No reports analyzed yet</td></tr>'; return; }
+        d.forEach((p,i)=>{ const tr=document.createElement('tr');
+          tr.appendChild(cell(i+1,'rank')); tr.appendChild(cell(p.gamertag,'name'));
           tr.appendChild(cell(p.score)); tr.appendChild(cell(p.kills)); tr.appendChild(cell(p.assists)); tr.appendChild(cell(p.deaths));
-          tr.appendChild(cell(p.net_kd,'kd')); tb.appendChild(tr); });
-        table.appendChild(tb); sc.appendChild(table); panel.appendChild(sc); grid.appendChild(panel); });
-      wrap.appendChild(grid);
-      recalc();
+          tr.appendChild(cell(p.net_kd,'kd')); tr.appendChild(cell(Math.round(p.win_rate*100)+'%', p.win_rate>=0.5?'win':'loss')); tr.appendChild(cell(p.games)); tb.appendChild(tr); });
+        recalc();
+      });
+      fetch('/api/gametypes').then(r=>r.json()).then(d=>{
+        const wrap=document.getElementById('gametypes'); wrap.innerHTML='';
+        const grid=document.createElement('div'); grid.className='gt-grid';
+        Object.keys(d).forEach(gt=>{ const panel=document.createElement('div'); panel.className='panel in';
+          const h=document.createElement('div'); h.className='gt-h'; h.textContent=gt; panel.appendChild(h);
+          const sc=document.createElement('div'); sc.className='scroller';
+          const table=document.createElement('table'); table.className='gt'; table.innerHTML='<thead><tr><th>Username</th><th>Score</th><th>K</th><th>A</th><th>D</th><th>K/D</th></tr></thead>';
+          const tb=document.createElement('tbody');
+          d[gt].forEach(p=>{ const tr=document.createElement('tr'); tr.appendChild(cell(p.gamertag,'name'));
+            tr.appendChild(cell(p.score)); tr.appendChild(cell(p.kills)); tr.appendChild(cell(p.assists)); tr.appendChild(cell(p.deaths));
+            tr.appendChild(cell(p.net_kd,'kd')); tb.appendChild(tr); });
+          table.appendChild(tb); sc.appendChild(table); panel.appendChild(sc); grid.appendChild(panel); });
+        wrap.appendChild(grid);
+        recalc();
+      });
+    }
+    refreshStats();
+
+    // upload: top-right button → native multi-file picker → POST each shot to /upload → refresh (no separate upload page)
+    const upInput=document.getElementById('up-input'), upLabel=document.querySelector('label.up');
+    if(upInput) upInput.addEventListener('change', async ()=>{
+      const files=[...upInput.files]; if(!files.length) return;
+      const orig=upLabel.textContent; let ok=0;
+      for(let i=0;i<files.length;i++){ upLabel.textContent=`Uploading ${i+1}/${files.length}…`;
+        const fd=new FormData(); fd.append('image', files[i]);
+        try{ const r=await fetch('/upload',{method:'POST',body:fd}); if(r.ok) ok++; }catch(e){} }
+      upInput.value=''; upLabel.textContent = ok ? `Uploaded ${ok}` : 'Upload failed'; refreshStats();
+      setTimeout(()=>{ upLabel.textContent=orig; }, 2800);
     });
 
     // countdown — 7:00 PM Central (Austin), July 6 2026 (CDT = -05:00) — top bar + big bottom

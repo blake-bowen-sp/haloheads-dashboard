@@ -1,14 +1,20 @@
 """
-End-to-end browser test: upload carnage report image -> analyze -> assert dashboard.
+End-to-end browser test: the dashboard's top-right Upload button -> native
+multi-file <input> -> POST /upload -> analyzer -> assert the leaderboard renders.
 
-Uses a real Chromium browser (headless) via pytest-playwright.
-The Flask app runs in a background thread sharing the same process so env vars
-and temp paths are shared between the test, server, and analyzer.
+Drives the real UI path a user touches. The Upload button is a <label> bound to a
+hidden multi-file <input>; there is no separate upload page anymore. The Flask app
+runs in a background thread sharing this process so env vars and temp paths are
+shared between the test, server, and analyzer.
 """
 import threading
+import time
+from pathlib import Path
 
 import pytest
 from werkzeug.serving import make_server
+
+from haloheads.storage import get_storage
 
 
 @pytest.fixture
@@ -27,35 +33,48 @@ def live_server(tmp_path, monkeypatch):
     server.shutdown()
 
 
-def test_upload_then_dashboard(live_server, page, sample_image_path):
-    # 1. Open the upload page, set the file input (real file), submit, assert success text.
-    page.goto(f"{live_server}/upload")
-    page.set_input_files("#file", str(sample_image_path))
-    page.fill("#map", "Lockout")
-    page.click("#submit")
-    page.wait_for_selector("#result:has-text('Uploaded')", timeout=10000)
+def _wait_pending(n, timeout=15):
+    end = time.time() + timeout
+    while time.time() < end:
+        if len(get_storage().list_pending()) >= n:
+            return
+        time.sleep(0.2)
+    raise AssertionError(
+        f"expected >= {n} pending uploads, got {len(get_storage().list_pending())}"
+    )
 
-    # 2. Run the analyzer against the SAME temp backends (env is shared in-process).
+
+def test_dashboard_upload_button(live_server, page, sample_image_path):
+    # 1. Open the dashboard and drive the real top-right Upload button's hidden input.
+    page.goto(live_server)
+    page.set_input_files("#up-input", str(sample_image_path))   # fires change -> POST /upload
+
+    # 2. The button reflects progress, and the POST lands server-side (env shared in-process).
+    page.wait_for_function(
+        "() => /Upload(ing|ed)/.test(document.querySelector('label.up').textContent)",
+        timeout=15000,
+    )
+    _wait_pending(1)
+
+    # 3. Analyze the pending upload (FAKE_EXTRACT), reload, assert the leaderboard rendered.
     from scripts.analyze import main as analyze_main
     analyze_main([])
-
-    # 3. Load the dashboard; assert the leaderboard rendered the extracted gamertags.
-    page.goto(f"{live_server}/")
-    page.wait_for_selector("#leaderboard tbody tr", timeout=10000)
+    page.goto(live_server)
+    page.wait_for_selector("#leaderboard tbody tr", timeout=15000)
     body = page.inner_text("#leaderboard")
     assert "Cyborg800" in body
     assert "ELIMINADOR" in body
 
 
-def test_multi_upload(live_server, page, sample_image_path):
-    from pathlib import Path
-    from haloheads.storage import get_storage
-
+def test_dashboard_upload_multiple(live_server, page, sample_image_path):
+    # Select two real files at once through the same multi-file input.
     second = Path(sample_image_path).parent / "scoreboard.png"
-    page.goto(f"{live_server}/upload")
-    page.set_input_files("#file", [str(sample_image_path), str(second)])
-    assert page.locator(".thumb").count() == 2
-    page.click("#submit")
-    page.wait_for_selector("#result:has-text('2/2')", timeout=15000)
+    page.goto(live_server)
+    page.set_input_files("#up-input", [str(sample_image_path), str(second)])
 
+    page.wait_for_function(
+        "() => document.querySelector('label.up').textContent.includes('Uploaded 2')",
+        timeout=20000,
+    )
+    _wait_pending(2)
     assert len(get_storage().list_pending()) == 2

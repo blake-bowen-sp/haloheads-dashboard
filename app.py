@@ -25,11 +25,6 @@ def dashboard():
     return render_template("dashboard.html")
 
 
-@app.route("/upload", methods=["GET"])
-def upload_page():
-    return render_template("upload.html")
-
-
 @app.route("/upload", methods=["POST"])
 def upload():
     file = request.files.get("image")
