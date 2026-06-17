@@ -161,14 +161,14 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060709);   // black bg — HDRI used for reflections only
     const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 100);
-    const rifleRig = new THREE.Group(); scene.add(rifleRig);       // anchored dead-centre (the H is too → aligned by construction)
+    const rifleRig = new THREE.Group(); scene.add(rifleRig); rifleRig.position.x = -0.03;  // centre, nudged a hair left onto the H
     const warthogRig = new THREE.Group(); scene.add(warthogRig);   // dropped — under the countdown
     const computerRig = new THREE.Group(); scene.add(computerRig); // THE CREW — sci-fi monitor, screen faces camera
     function visWH(z){ const h = 2*z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)); return [h*(innerWidth/innerHeight), h]; }
     function fitCamera(){ const a=innerWidth/innerHeight; const z = a<1 ? 8.6/(a*0.92) : 8.6;
       camera.position.set(0,0.1,z); camera.lookAt(0,0,0);
       warthogRig.position.set(0, -visWH(z)[1]*(a<1?0.05:0.18), 0);
-      computerRig.position.set(0, -visWH(z)[1]*0.04, 0); }
+      computerRig.position.set(0, -visWH(z)[1]*0.04, -2.6); }   // scooted back off the camera
     fitCamera();
 
     const pmrem = new THREE.PMREMGenerator(renderer);
@@ -182,10 +182,11 @@
     const back = new THREE.DirectionalLight(0xbfe9ff, 1.5); back.position.set(-6,2,-5); scene.add(back);
     scene.add(new THREE.AmbientLight(0x1a2630, 0.4));
 
-    const dg=new THREE.BufferGeometry(), N=380, P=new Float32Array(N*3);
-    for(let i=0;i<N*3;i++) P[i]=(Math.random()-0.5)*26;
-    dg.setAttribute('position', new THREE.BufferAttribute(P,3));
-    scene.add(new THREE.Points(dg, new THREE.PointsMaterial({color:0x33ffb0,size:0.013,transparent:true,opacity:0.3,depthWrite:false})));
+    const N=380, dustBase=new Float32Array(N*3), dustPos=new Float32Array(N*3);
+    for(let i=0;i<N*3;i++){ dustBase[i]=(Math.random()-0.5)*26; dustPos[i]=dustBase[i]; }
+    const dg=new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(dustPos,3));
+    const dust=new THREE.Points(dg, new THREE.PointsMaterial({color:0x33ffb0,size:0.013,transparent:true,opacity:0.3,depthWrite:false}));
+    scene.add(dust); let dustT=0;
 
     const SCALE = 12.4;   // shared voxel scale → identical voxel size on rifle + warthog
     const dissolveList = [];
@@ -219,10 +220,16 @@
       const o=g.scene;
       o.traverse(m=>{ if(m.isMesh && m.name==='Plane001_digital_displays_0'){ m.material=m.material.clone(); m.__screen=true; } });  // own material for the screen
       place(o, portrait?5.6:6.8); computerRig.add(o); computerU=makeDissolve(o, computerRig); computerU.uD.value=1;
-      new THREE.TextureLoader().load('/static/img/crew.jpg', (tex)=>{   // drop static/img/crew.jpg → it lands here
-        tex.colorSpace=THREE.SRGBColorSpace; tex.flipY=false; tex.center.set(0.5,0.5);
+      const img=new Image();   // crew photo → FIT (no stretch/crop) on a black screen of the panel's aspect (~1.90:1)
+      img.onload=()=>{ const cw=2048, ch=Math.round(cw*2.43/4.61);
+        const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+        const cx=cv.getContext('2d'); cx.fillStyle='#000'; cx.fillRect(0,0,cw,ch);
+        const s=Math.min(cw/img.naturalWidth, ch/img.naturalHeight), dw=img.naturalWidth*s, dh=img.naturalHeight*s;
+        cx.drawImage(img,(cw-dw)/2,(ch-dh)/2,dw,dh);   // contained + centred, black bars around
+        const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace; tex.flipY=false;
         o.traverse(m=>{ if(m.__screen){ m.material.map=tex; m.material.emissiveMap=tex; m.material.emissive.set(0xffffff); m.material.emissiveIntensity=1.2; m.material.needsUpdate=true; } });
-      }, undefined, ()=>{});
+      };
+      img.onerror=()=>{}; img.src='/static/img/crew.jpg';
     }, undefined, ()=>{});
 
     const hdrRT = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type:THREE.HalfFloatType, samples: MOBILE?2:4 });
@@ -241,6 +248,12 @@
     (function loop(){
       requestAnimationFrame(loop);
       const p = Math.min(1, scrollY/docH);               // scroll-LOCKED, no smoothing/spring
+      dustT += 0.016;                                    // green dust: slight curl-noise swirl + scroll parallax
+      for(let i=0;i<N;i++){ const x=dustBase[i*3], y=dustBase[i*3+1], z=dustBase[i*3+2];
+        dustPos[i*3]   = x + (Math.sin(y*0.5+dustT*0.3)+Math.cos(z*0.4-dustT*0.2))*0.26;
+        dustPos[i*3+1] = y + (Math.sin(z*0.5-dustT*0.25)+Math.cos(x*0.4+dustT*0.18))*0.26;
+        dustPos[i*3+2] = z + (Math.sin(x*0.5+dustT*0.22)+Math.cos(y*0.4-dustT*0.15))*0.26; }
+      dg.attributes.position.needsUpdate=true; dust.position.y = -p*1.8;
       const ry = p*Math.PI*2.4;                          // tight rotation only — no auto-spin
       rifleRig.rotation.set(0.05, ry, 0);                // sniper rotates; monitor stays STATIC
       warthogRig.rotation.y = ry;
