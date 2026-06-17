@@ -1,4 +1,4 @@
-const CACHE = "haloheads-v4";
+const CACHE = "haloheads-v5";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
