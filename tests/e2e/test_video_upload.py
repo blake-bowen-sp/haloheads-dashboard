@@ -30,8 +30,19 @@ def live_server(tmp_path, monkeypatch):
     server.shutdown()
 
 
+def _enter(page):
+    # The ENTER splash overlays the dashboard until tapped; dismiss it so the content
+    # underneath is interactive (otherwise clicks land on the splash).
+    page.wait_for_selector("#loader", state="hidden", timeout=25000)
+    page.click("#splash")
+    page.wait_for_function(
+        "() => document.getElementById('splash').classList.contains('gone')", timeout=5000
+    )
+
+
 def test_video_upload_renders_tab_pages(live_server, page):
     page.goto(live_server)
+    _enter(page)
 
     # 1. Drive the real top-right Upload button's hidden input with a video file.
     page.set_input_files("#up-input", SAMPLE)
@@ -42,6 +53,7 @@ def test_video_upload_renders_tab_pages(live_server, page):
 
     # 2. Reload; the OVERVIEW tab feeds the existing leaderboard.
     page.goto(live_server)
+    _enter(page)
     page.wait_for_selector("#leaderboard tbody tr", timeout=15000)
     assert "Cyborg800" in page.inner_text("#leaderboard")
 
